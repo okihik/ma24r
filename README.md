@@ -1,2 +1,2 @@
-# maR
+# ma24r
 This code is for the thesis of my master's degree in MA NRES.
