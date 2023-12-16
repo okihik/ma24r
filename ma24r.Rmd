@@ -1,0 +1,88 @@
+---
+title: "Metabolism of A Noodle Restaurant about Food Loss and Food Waste:
+Micro-Level Material Flow Model and Tobit Regression Analysis"
+subtitle: "An implementation in R Markdown" # only for html output
+author: "Akihiko Mori"
+date: "`r Sys.Date()`"
+output:
+  tufte::tufte_html: default
+  tufte::tufte_handout:
+    citation_package: natbib
+    latex_engine: xelatex
+  tufte::tufte_book:
+    citation_package: natbib
+    latex_engine: xelatex
+bibliography: skeleton.bib
+link-citations: yes
+---
+
+```{r setup, include=FALSE}
+library(tufte)
+# invalidate cache when the tufte version changes
+knitr::opts_chunk$set(cache.extra = packageVersion('tufte'))
+options(htmltools.dir.version = FALSE)
+```
+# Library
+```{r Library, include=FALSE}
+# Library ----------------------------------------------------------------------
+library(googlesheets4) # google sheets
+library(ggplot2) # ggplot
+library(lubridate) # wday function
+library(gridExtra) # grid.arrange function
+library(ggcorrplot) # cor_pmat
+library(forecast) # ggAcf
+library(tseries) # adf.test
+library(performance) # check_model
+library(see) # check_model
+library(dplyr) # mutate
+
+
+# Source -----------------------------------------------------------------------
+source("isValidSheet.R", encoding="utf-8")
+```
+
+# Data Retrieve
+
+```{r data import}
+# Retrieve data from Google sheet ----------------------------------------------
+gs4_auth() # Authentification
+# full weather
+RAW_DATA_URL <- "https://docs.google.com/spreadsheets/d/1QDdgc_fR1_iALRschw7ymXOE7EJmEqAP_Xp_b6mwHP4/edit?usp=sharing"
+
+raw_sheet <- read_sheet(RAW_DATA_URL,
+                        col_names = TRUE,
+                        col_types = "Dcldddiiiidii",
+                        range = "RAW!A1:M170")
+# import weather data ----------------------------------------------------------
+weather_sheet <- read_sheet(RAW_DATA_URL,
+                            col_names = TRUE,
+                            range = "pgweather230402retrieved!A1:BR1001")
+# Combine two sheet sorted by "date" -------------------------------------------
+sheet <- dplyr::left_join(raw_sheet, weather_sheet, by = "date")
+
+# Eliminate unnecessary columns
+sheet <- sheet[c(1:13,15,21,55)]
+# rename columns  # <- "old names"
+colnames(sheet) <- c("date",      # <- date
+                     "day",       # <- day
+                     "isClosed",  # <- isClosed
+                     "flKg",      # <- soup_stock
+                     "slfwKg",    # <- noodle_soup
+                     "lfwKg",     # <- soup
+                     "customers", # <- customers
+                     "full",      # <- ramen_orders
+                     "half",      # <- mini_orders
+                     "liquors",   # <- liquors
+                     "salesD",    # <- sales
+                     "takeouts",  # <- takeouts
+                     "container", # <- togo
+                     "tempC",     # <- avg_hourly_temperature
+                     "humiPerc",  # <- avg_hourly_relative_humidity
+                     "precipMM"   # <- precipitation
+                     )
+
+
+# Create data frame ------------------------------------------------------------
+sheet <- data.frame(sheet)
+View(sheet)
+```
