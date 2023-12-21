@@ -67,6 +67,6 @@ prepInputs <- function(rawSheet = rawSheet, adjm = adjm,
   return(data.frame(date = rawSheet[,1],
                     totServ_input  = t(inputs.from.totServ),
                     foodLoss_input = t(inputs.from.foodLoss),
-                    Broth_diff = t(diff.Broth),
-                    Final_Prod_diff = t(diff.prods)))
+                    Broth_diff     = t(diff.Broth),
+                    Final_Prod_diff= t(diff.prods)))
 }
