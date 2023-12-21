@@ -8,8 +8,6 @@ prepWeek <- function(sheet = sheet, baseDay = baseDay){
   # Retrieve the set of day in the sheet
   set_week <- sets::as.set(sheet$day)
   
-  # Convert baseDay
-  
   ## Day of the week coding ----------------------------------------------------
   # create new vector for day of the week based on the date in the sheet
   week_day <- wday(sheet$date, label = TRUE)
@@ -20,6 +18,7 @@ prepWeek <- function(sheet = sheet, baseDay = baseDay){
   
   tue <- wed <- thur <- fri <- sat <- sun <- numeric(length = obsDays)
   
+  # Convert baseDay
   # Dummy Coding: Assign 1; otherwise 0 ----------------------------------------
   switch(baseDay,
          "Sun" = {# Sunday is the based day -> 0
