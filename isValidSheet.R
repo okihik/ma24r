@@ -25,16 +25,22 @@ isValidSheet <- function(sheet = sheet){
   }
   
   # Check for negative values for measurements or observations
-  if(!(all((sheet$fl|sheet$slfw|sheet$lfw|
-            sheet$customers|sheet$full|sheet$half|
-            sheet$liquors|sheet$sales|sheet$takeouts|
+  if(!(all((sheet$soup_stock|
+            sheet$noodle_soup|
+            sheet$soup|
+            sheet$customers|
+            sheet$ramen_orders|
+            sheet$mini_orders|
+            sheet$liquors|
+            sheet$salesD|
+            sheet$takeouts|
             sheet$container >= 0) == TRUE))){
     isValid <- !isValid
     print("The date retrieved sheet has negative values.")
   }
   
   # Check if weather conditions (temperature) is between -50 to 50
-  if(!(all(dplyr::between(sheet$temp,-50,50)))){
+  if(!(all(dplyr::between(sheet$avg_hourly_temperature,-50,50)))){
     isValid <- !isValid
     print("The date retrieved sheet has negative values.")
   }
@@ -48,13 +54,13 @@ isValidSheet <- function(sheet = sheet){
   # }
   
   # Check if weather conditions (humiditiy) is between 0 to 100
-  if(!(all(dplyr::between(sheet$humi,0,100)))){
+  if(!(all(dplyr::between(sheet$avg_hourly_relative_humidity,0,100)))){
     isValid <- !isValid
     print("The humidity date is not percentage.")
   }
   
   # Check if precipitation has negative value
-  if(!(all((sheet$precip >= 0) == TRUE))){
+  if(!(all((sheet$precipitation >= 0) == TRUE))){
     isValid <- !isValid
     print("The precipitation date has negative values.")
   }
