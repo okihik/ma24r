@@ -10,7 +10,6 @@ dataGetFrom <- function(URL = URL){
   gs4_auth()
   # ss <- gs4_get(URL)
   
-  
   # URL <- "https://docs.google.com/spreadsheets/d/1QDdgc_fR1_iALRschw7ymXOE7EJmEqAP_Xp_b6mwHP4/edit?usp=sharing"
   
   raw_sheet <- read_sheet(URL,
