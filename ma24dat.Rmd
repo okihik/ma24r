@@ -6,18 +6,6 @@ Micro-Level Material Flow Model and Tobit Regression Analysis"
 # Library
 ```{r Library, include=FALSE}
 # Library ----------------------------------------------------------------------
-library(ggplot2) # ggplot
-library(lubridate) # wday function
-library(gridExtra) # grid.arrange function
-library(ggcorrplot) # cor_pmat
-library(forecast) # ggAcf
-library(tseries) # adf.test
-library(performance) # check_model
-library(see) # check_model
-library(dplyr) # mutate
-library(tidyverse)
-
-
 # Source -----------------------------------------------------------------------
 source("isValidSheet.R",  encoding="utf-8")
 source("dataGetFrom.R",   encoding="utf-8")
@@ -61,6 +49,7 @@ sheets <- merge(sheet.raw, sheet.net, by = "date")
 ## Append day of the week as Dummy and Effect variable
 ```{r day of the week}
 # based day of the week must be either Tue, Wed, Thu, Fri, Sat, Sun.
+rm(sheet.week)
 sheet.week <- prepWeek(sheet.net, "Sun")
 # View(sheet.week)
 # rm(df)
