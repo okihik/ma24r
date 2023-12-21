@@ -22,8 +22,10 @@ library(performance) # check_model
 library(see) # check_model
 library(dplyr) # mutate
 library(tidyverse)
+```
 
-
+```{r data import}
+# df <- 
 ```
 
 
@@ -33,6 +35,129 @@ str(df)
 names(df)
 ```
 
+# Univariable
+```{r open days}
+# sample size: open and close days ---------------------------------------
+data.frame(obs_days    = nrow(df),
+           open_days   = sum(!df$is_closed),
+           closed_days = sum(df$is_closed))
+```
+
+
+
+```{r basic summary}
+# basic summary: dependents ----------------------------------------------------
+data.frame(food_loss_waste   = c(summary(df$food_loss_kg + df$food_waste_kg)),
+           food_loss         = c(summary(df$food_loss_kg)),
+           food_waste_all    = c(summary(df$food_waste_kg)),
+           food_waste_liquid = c(summary(df$liquid_waste_kg)),
+           food_waste_solid  = c(summary(df$solid_waste_kg)))
+
+# basic summary: dependents excluding closed days ------------------------------
+data.frame(food_loss_waste   = c(summary(df$food_loss_kg[!df$is_closed] 
+                                         + df$food_waste_kg[!df$is_closed])),
+           food_loss         = c(summary(df$food_loss_kg[!df$is_closed])),
+           food_waste_all    = c(summary(df$food_waste_kg[!df$is_closed])),
+           food_waste_liquid = c(summary(df$liquid_waste_kg[!df$is_closed])),
+           food_waste_solid  = c(summary(df$solid_waste_kg[!df$is_closed])))
+```
+
+## Histograms
+### Boxplots
+```{r boxplots}
+
+```
+
+### Histograms
+```{r histograms}
+
+```
+
+
+## Time Series Plots
+```{r time series plots}
+# Time Series Plot on food loss and food waste ---------------------------------
+tsPlot_loss_waste <- 
+  ggplot() +
+  geom_line(data = df, 
+            aes(x = date, y = food_loss_kg + food_waste_kg),color="dark blue") +
+  geom_point(data = df, aes(x = date, y = food_loss_kg + food_waste_kg,
+                            shape = is_closed)) +
+  scale_shape_manual(values=c(16, 4)) +
+  theme(legend.position = c(0.05,0.15)) +
+  # geom_rect(data = df, aes(xmin = date, xmax = dplyr::lead(date),
+  #                          ymin = -Inf, ymax = Inf,
+  #                          fill = factor(!is_closed)),  alpha = .3) +
+  xlab("Date") +
+  ylab("Daily Food Loss and Waste (kg)") +
+  ggtitle("Daily Food Loss and Waste Trend")
+tsPlot_loss_waste
+
+# Time Series Plot on food loss ------------------------------------------------
+tsPlot_loss <- 
+  ggplot() +
+  geom_line(data = df, aes(x = date, y = food_loss_kg), color="blue") +
+  # geom_line(data = dt, aes(x = date, y = liquidWasteKg), color="orange", linetype = "dotted") +
+  geom_line(data = df, aes(x = date, y = food_loss_kg), color="blue", linetype = "dashed") +
+  geom_point(data = df, aes(x = date, y = food_loss_kg, shape = is_closed)) +
+  # geom_point(data = df, aes(x = date, y = food_loss_kg, shape = is_closed)) +
+  scale_shape_manual(values=c(16, 4))+
+  theme(legend.position = c(0.9,0.85)) +
+  xlab("Date") +
+  ylab("Daily Food Loss (kg)") +
+  ggtitle("Daily Food Loss Trend")
+tsPlot_loss
+
+# Time Series Plot on food waste -----------------------------------------------
+tsPlot_waste <- 
+  ggplot() +
+  geom_line(data = df, aes(x = date, y = food_waste_kg), color="black") +
+  #geom_line(data = dt, aes(x = date, y = liquidWasteKg), color="orange", linetype = "dotted") +
+  geom_line(data = df, aes(x = date, y = food_waste_kg), color="blue", linetype = "dashed") +
+  geom_point(data = df, aes(x = date, y = food_waste_kg, shape = is_closed)) +
+  # geom_point(data = df, aes(x = date, y = food_waste_kg, shape = is_closed)) +
+  scale_shape_manual(values=c(16, 4))+
+  theme(legend.position = c(0.8,0.85)) +
+  xlab("Date") +
+  ylab("Daily Food Waste (kg)") +
+  ggtitle("Daily Food Waste Trend")
+tsPlot_waste
+
+# Time Series Plot on solid food waste -----------------------------------------
+tsPlot_solid_waste <- 
+  ggplot() +
+  geom_line(data = df, aes(x = date, y = solid_waste_kg), color="dark orange") +
+  #geom_line(data = dt, aes(x = date, y = solid_waste_kg), color="orange", linetype = "dotted") +
+  # geom_line(data = df, aes(x = date, y = solid_waste_kg), color="blue", linetype = "dashed") +
+  geom_point(data = df, aes(x = date, y = solid_waste_kg, shape = is_closed)) +
+  # geom_point(data = df, aes(x = date, y = solid_waste_kg, shape = is_closed)) +
+  scale_shape_manual(values=c(16, 4))+
+  theme(legend.position = c(0.8,0.85)) +
+  xlab("Date") +
+  ylab("Daily Solid Food Waste (kg)") +
+  ggtitle("Daily Solid Food Waste Trend")
+tsPlot_solid_waste
+
+# Time Series Plot on liquid food waste ----------------------------------------
+tsPlot_liquid_waste <- 
+  ggplot() +
+  geom_line(data = df, aes(x = date, y = liquid_waste_kg), color="dark blue") +
+  #geom_line(data = dt, aes(x = date, y = liquid_waste_kg), color="orange", linetype = "dotted") +
+  geom_line(data = df, aes(x = date, y = liquid_waste_kg), color="blue", linetype = "dashed") +
+  geom_point(data = df, aes(x = date, y = liquid_waste_kg, shape = is_closed)) +
+  # geom_point(data = df, aes(x = date, y = liquid_waste_kg, shape = is_closed)) +
+  scale_shape_manual(values=c(16, 4))+
+  theme(legend.position = c(0.8,0.85)) +
+  xlab("Date") +
+  ylab("Daily Liquid ood Waste (kg)") +
+  ggtitle("Daily Liquid Food Waste Trend")
+tsPlot_liquid_waste
+
+# grid.arrange(tsPlot_loss_waste,tsPlot_loss_waste, tsPlot_waste)
+```
+
+# Bivarialble
+## Correlations
 ```{r}
 
 ```
