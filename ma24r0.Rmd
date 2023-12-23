@@ -145,7 +145,10 @@ df <- merge(df, sheet.week[,c(-2)], by = "date")
 ```
 
 ```{r clean up sheets variables}
+dataFolder = "/Users/am/Library/CloudStorage/OneDrive-UNBC/00MAthesis/ma24r/ma24data"
+write.csv(df, dataFolder, row.names=FALSE)
 # delete sheets
+rm(dataFolder)
 rm(sheet.inputs);rm(sheet.net);rm(sheet.raw);rm(sheet.week);rm(sheets)
 rm(daily_food_loss);rm(daily_total_served);rm(numComp);rm(URL);rm(loc)
 rm(dataGetFrom);rm(isValidSheet);rm(prepInputs);rm(prepNetWeight);rm(prepWeek)

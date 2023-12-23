@@ -483,3 +483,11 @@ tsPlot_sales
 grid.arrange(tsPlot_total_orders,tsPlot_D_S, tsPlot_diff_D_S,tsPlot_sales)
 ```
 
+
+
+# Bivarialble
+## Correlations
+```{r}
+
+```
+
