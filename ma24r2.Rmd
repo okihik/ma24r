@@ -309,7 +309,7 @@ rm("dens_waste","dens_temp","scatter_waste_temp")
 
 ```{r density_scatter_waste_precip}
 # Scatter and Densities plot of food waste and humidity ------------------------
-scatter_plot_waste_precip <-
+scatter_waste_precip <-
   ggplot(data=df,aes(x=prcp_mm, y=food_waste_kg)) +
   geom_point(size = 2) +
   geom_point(shape = 1, color = "black", size = 2) +
@@ -322,7 +322,7 @@ scatter_plot_waste_precip <-
   coord_cartesian(xlim=c(0,15), ylim=c(0,7)) +
   theme_pubr() +
   theme(legend.position = c(0.15, 0.9))
-#scatter_plot_waste_precip
+#scatter_waste_precip
 
 dens_precip <-
   ggplot(df, aes(x = prcp_mm)) +
@@ -344,9 +344,11 @@ scatter_dens_precip <-
   dens_precip +
   labs(title = "Scatter and Kernel Densities of Food Waste and Precipitation (mm)") +
   plot_spacer() + # library(patchwork)
-  scatter_plot_waste_precip + dens_waste +
+  scatter_waste_precip + dens_waste +
   plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
 
 scatter_dens_precip
+
+rm("dens_waste","dens_precip","scatter_waste_precip")
 ```
 
