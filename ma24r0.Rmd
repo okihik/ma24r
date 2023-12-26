@@ -1,11 +1,11 @@
 ---
-title: "Metabolism of A Noodle Restaurant about Food Loss and Food Waste:
-Micro-Level Material Flow Model and Tobit Regression Analysis"
+title: "Data Preprocess - MA Data analysis"
 ---
 
 ## Library
 ```{r Library, include=FALSE}
 # Library ----------------------------------------------------------------------
+library(lubridate)
 # Source -----------------------------------------------------------------------
 source("isValidSheet.R",  encoding="utf-8")
 source("dataGetFrom.R",   encoding="utf-8")
@@ -14,14 +14,14 @@ source("prepWeek.R",      encoding="utf-8")
 source("prepInputs.R",    encoding="utf-8")
 ```
 
-# Data Retrieve
+## Data Retrieve
 ```{r data_import}
 URL = "https://docs.google.com/spreadsheets/d/1QDdgc_fR1_iALRschw7ymXOE7EJmEqAP_Xp_b6mwHP4/edit?usp=sharing"
 sheet.raw <- dataGetFrom(URL)
 # View(sheet.raw)
 ```
 
-## data check
+### data check
 ```{r data_check}
 # Check list -------------------------------------------------------------------
 # Check for sheet existence and data frame format
@@ -38,15 +38,15 @@ isValidSheet(sheet.raw)
 
 
 
-# Data Preprocess
-## Convert Gross weight to Net weight of FLW
+## Data Preprocess
+### Convert Gross weight to Net weight of FLW
 ```{r gross_to_net_weight}
 rm(sheet.net)
 sheet.net <- prepNetWeight(sheet.raw)
 sheets <- merge(sheet.raw, sheet.net, by = "date")
 ```
 
-## Append day of the week as Dummy and Effect variable
+### Append day of the week as Dummy and Effect variable
 ```{r day of the week}
 # based day of the week must be either Tue, Wed, Thu, Fri, Sat, Sun.
 rm(sheet.week)
@@ -56,7 +56,7 @@ sheet.week <- prepWeek(sheet.net, "Sun")
 # sheets <- merge(sheets, sheet.week, by = "date")
 ```
 
-## Daily mass balance model in the restaurant
+### Daily mass balance model in the restaurant
 ```{r food_inputs_estimate}
 numComp = 13
 AdjMat <- matrix(c(0,0,0,-0.15,    # 1. noodle
@@ -84,6 +84,7 @@ sheet.inputs <- prepInputs(sheet.raw,AdjMat,
 sheets <- merge(sheets, sheet.inputs, by = "date")
 ```
 
+### Data combine
 ```{r rename data variables}
 df <- data.frame(
   date      = as.Date(sheets$date),        # date
@@ -144,6 +145,7 @@ sheet.week$date <- as.Date(sheet.week$date)
 df <- merge(df, sheet.week[,c(-2)], by = "date")
 ```
 
+### Save data and delete unnecissary states
 ```{r clean up sheets variables}
 dataFolder = "/Users/am/Library/CloudStorage/OneDrive-UNBC/00MAthesis/ma24r/ma24data"
 write.csv(df, dataFolder, row.names=FALSE)

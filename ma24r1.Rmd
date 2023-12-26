@@ -1,11 +1,9 @@
 ---
-title: 'Metabolism of A Noodle Restaurant about Food Loss and Food Waste: Micro-Level
-  Material Flow Model and Tobit Regression Analysis'
+title: "Univariate - MA Data Analysis"
 author: "Akihiko Mori"
-date: "12/20/2023"
 output: html_document
 ---
-
+#'Metabolism of A Noodle Restaurant about Food Loss and Food Waste: Micro-Level Material Flow Model and Tobit Regression Analysis'
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -17,8 +15,12 @@ library(lubridate) # wday function
 library(gridExtra) # grid.arrange function
 library(tidyverse)
 library(stargazer)
+library(rstatix)
+library(forecast)
+library(bayesforecast)
 ```
 
+## Import Data from file
 ```{r data import, echo=FALSE,message = FALSE, warning=FALSE}
 rm(df)
 dataPass = "/Users/am/Library/CloudStorage/OneDrive-UNBC/00MAthesis/ma24r/ma24data"
@@ -26,23 +28,26 @@ df <- read.csv(dataPass)
 rm(dataPass)
 ```
 
-
+### Check imported data
 ```{r check data}
 head(df)
 str(df)
 names(df)
 ```
 
-# Univariable
+## Univariable
+### Open days
 ```{r open days}
 # sample size: open and close days ---------------------------------------
 data.frame(obs_days    = nrow(df),
            open_days   = sum(df$is_closed),
            closed_days = sum(!df$is_closed))
+df %>% 
+  freq_table(is_closed)
 ```
 
 
-
+### Basic Summary of Dependent Variables
 ```{r basic summary}
 # basic summary: dependents ----------------------------------------------------
 data.frame(food_loss_waste   = c(summary(df$food_loss_kg + df$food_waste_kg)),
@@ -50,6 +55,9 @@ data.frame(food_loss_waste   = c(summary(df$food_loss_kg + df$food_waste_kg)),
            food_waste_all    = c(summary(df$food_waste_kg)),
            food_waste_liquid = c(summary(df$liquid_waste_kg)),
            food_waste_solid  = c(summary(df$solid_waste_kg)))
+df %>% 
+  select(c(food_loss_kg,food_waste_kg,liquid_waste_kg,solid_waste_kg)) %>% 
+  get_summary_stats()
 
 # basic summary: dependents excluding closed days ------------------------------
 data.frame(food_loss_waste   = c(summary(df$food_loss_kg[!df$is_closed] 
@@ -58,6 +66,10 @@ data.frame(food_loss_waste   = c(summary(df$food_loss_kg[!df$is_closed]
            food_waste_all    = c(summary(df$food_waste_kg[!df$is_closed])),
            food_waste_liquid = c(summary(df$liquid_waste_kg[!df$is_closed])),
            food_waste_solid  = c(summary(df$solid_waste_kg[!df$is_closed])))
+df %>% 
+  filter(is_closed == FALSE) %>%
+  select(c(food_loss_kg,food_waste_kg,liquid_waste_kg,solid_waste_kg)) %>% 
+  get_summary_stats()
 ```
 
 ```{r stargazer dependents}
@@ -78,8 +90,8 @@ stargazer(subset(df[4:7], df$is_closed == FALSE),  flip=TRUE,
 
 ## Histograms
 ```{r histograms}
-# bw <- 2 * IQR(df$food_loss_kg) / length(df$food_loss_kg)^(1/3)
 # binwidth = bw
+# bw <- 2 * IQR(df$food_loss_kg) / length(df$food_loss_kg)^(1/3)
 
 # Histogram on food loss + food waste ------------------------------------------
 hist_loss_waste <- 
@@ -128,13 +140,15 @@ grid.arrange(hist_loss_waste,hist_loss,
 
 
 ## Time Series Plots
-```{r create month day name}
-df$month_name <- format(as.Date(df$date), format = "%b")
-# head(df$month); tail(df$month)
-df$month_name = factor(df$month_name, 
-                       levels = c('Sep','Oct','Nov','Dec',
-                                  'Jan','Feb','Mar'))
-df$day_name <- format(as.Date(df$date), format = "%d")
+```{r add month_day_name, echo=FALSE}
+# add month_name (September, ..., March) to data frame -------------------------
+df <- df %>% 
+  mutate(month_name = format(as.Date(df$date), format = "%b")) %>%
+  mutate(month_name = factor(month_name, levels = c('Sep','Oct','Nov','Dec',
+                                                    'Jan','Feb','Mar')))
+# add day_name (1, ..., 30,31) to data frame -----------------------------------
+df <- df %>% 
+  mutate(day_name = format(as.Date(df$date), format = "%d"))
 ```
 
 
@@ -554,6 +568,35 @@ but food loss is approx. 3 days or 20 days cycle.
 
 
 
+### Q-Q plot
+```{r QQ plot dep vars.}
+# Food loss ------------
+ggplot(df, aes(sample=food_loss_kg)) +
+  stat_qq() + stat_qq_line() +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Food Loss in kg")
+
+# Food waste ------------
+ggplot(df, aes(sample=food_waste_kg)) +
+  stat_qq() + stat_qq_line() +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Food Waste in kg")
+
+# Solid Food waste ------------
+ggplot(df, aes(sample=solid_waste_kg)) +
+  stat_qq() + stat_qq_line() +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Solid Food Waste in kg")
+
+# Liquid Food waste ------------
+ggplot(df, aes(sample=liquid_waste_kg)) +
+  stat_qq() + stat_qq_line() +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Liquid Food Waste in kg")
+```
+
+
+## Analysis
 
 ```{r delete envir}
 rm(list = ls()[! ls() %in% c("df", "AdjMat")])
