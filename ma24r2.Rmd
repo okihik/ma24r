@@ -28,7 +28,7 @@ library(rstatix)
 ```{r import data,echo=FALSE, message = FALSE, warning=FALSE}
 rm(df)
 dataPass = "/Users/am/Library/CloudStorage/OneDrive-UNBC/00MAthesis/ma24r/ma24data"
-df <- read.csv(dataPass)
+df <- read_csv(dataPass)
 rm(dataPass)
 ```
 
@@ -38,7 +38,8 @@ rm(dataPass)
 # independent variables ----
 deptData <- df %>%
   filter(.,is_closed == FALSE) %>%
-  select(c(food_loss_kg,food_waste_kg,liquid_waste_kg,solid_waste_kg))
+  select(c(food_loss_kg,food_waste_kg,
+           liquid_waste_kg,solid_waste_kg))
 
 # correlation between independent variables ------------------------------------
 deptData %>% cor_mat()
@@ -50,8 +51,7 @@ deptData %>%
   cor_mat() %>%
   cor_reorder() %>%
   pull_lower_triangle() %>%
-  cor_plot(label = TRUE)
-
+  cor_plot(label = TRUE) 
 ```
 
 
@@ -62,6 +62,7 @@ deptData %>%
 indeptData <- df %>%
   filter(.,is_closed == FALSE) %>%
   select(c(temp_c,humi_p, prcp_mm,
+           fulls, halfs, takeouts,
            customers, liquors, sales))
 
 # correlation between independent variables ------------------------------------
