@@ -77,18 +77,68 @@ indeptData %>%
   cor_plot(label = TRUE)
 ```
 
+## Correlation b/w independent vars.
+
+```{r}
+# independent variables ----
+indeptData <- df %>%
+  filter(.,is_closed == FALSE) %>%
+  select(c(temp_c,humi_p, prcp_mm,
+           customers, liquors, sales))
+
+# correlation between independent variables ------------------------------------
+indeptData %>% cor_mat()
+# correlation p-values ---------------------------------------------------------
+indeptData %>% cor_pmat()
+
+# visulalization
+indeptData %>%
+  cor_mat() %>%
+  cor_reorder() %>%
+  pull_lower_triangle() %>%
+  cor_plot(label = TRUE)
+
+library(tidymodels)
+tidymodels_prefer()
+library(beans)
+library(corrr)
+
+indept_corr <- indeptData %>%
+  # select(-class) %>%      # drop non-numeric cols
+  correlate() %>%         # generate a correlation matrix in data frame format
+  rearrange() %>%         # group highly correlated variables together
+  shave()                 # shave off the upper triangle
+
+# plot the correlation matrix
+indept_corr %>%
+  rplot(print_cor=TRUE) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
 ## Principal Component Analysis
 ```{r}
 source("plotPCAresults.R",  encoding="utf-8")
 library(ggforce)
 library(embed)
 library(bestNormalize)
-df %>%
+library(recipes)
+
+df_bus <- df %>%
   filter(.,is_closed == FALSE) %>%
-  select(c(temp_c,humi_p, prcp_mm,
-           customers, liquors, sales)) %>%
+  select(c(customers, liquors, sales))
+df_wea <- df %>%
+  filter(.,is_closed == FALSE) %>%
+  select(c(temp_c,humi_p, prcp_mm))
+
+bean_rec <-
+  recipe(class ~ ., data = df_bus) %>%
+  step_zv(all_numeric_predictors()) %>%
+  step_orderNorm(all_numeric_predictors()) %>% 
+  step_normalize(all_numeric_predictors())
+
+
+df_bus %>%
   step_pca(all_numeric_predictors(), num_comp = 4) %>%
-  plot_validation_results() + 
+  plotPCAresults() + 
   ggtitle("Principal Component Analysis")
 ```
 
