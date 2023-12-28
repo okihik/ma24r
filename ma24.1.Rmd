@@ -140,6 +140,7 @@ grid.arrange(hist_loss_waste,hist_loss,
 
 
 ## Time Series Plots
+### Daily Time Series
 ```{r add month_day_name, echo=FALSE}
 # add month_name (September, ..., March) to data frame -------------------------
 df <- df %>% 
@@ -217,6 +218,7 @@ daily_liquid_waste
 grid.arrange(daily_loss_waste,daily_loss, daily_waste,
              daily_solid_waste,daily_liquid_waste)
 ```
+
 
 
 ```{r plot monthly}

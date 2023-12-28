@@ -1,0 +1,1429 @@
+---
+title: "Train and Evaluate Regression Models using Tidymodels"
+output:
+  html_document:
+    css: style_6.css
+    df_print: paged
+    theme: flatly
+    highlight: breezedark
+    toc: yes
+    toc_float: yes
+    code_download: yes
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(tidymodels)
+library(glue)
+library(lubridate)
+library(kableExtra)
+library(patchwork)
+library(scales)
+library(summarytools)
+library(plotly)
+library(glmnet)
+library(randomForest)
+library(xgboost)
+library(conflicted)
+slice <- dplyr::slice
+eval_metrics <- metric_set(rmse, rsq)
+```
+
+## Buckle up 👨‍🚀
+
+In this learning path, we'll learn how to create Machine learning models using `R` 😊. Machine learning is the foundation for predictive modeling and artificial intelligence. We'll learn the core principles of machine learning and how to use common tools and frameworks to train, evaluate, and use machine learning models.
+
+Modules that will be covered in this learning path include:
+
+-   [*Explore and analyze data with R*](https://rpubs.com/eR_ic/exploRe)
+
+-   *Train and evaluate regression models*
+
+-   *Train and evaluate classification models (under development)*
+
+-   *Train and evaluate clustering models (under development)*
+
+-   *Train and evaluate deep learning models (under development)*
+
+### **Prerequisites**
+
+This learning path assumes knowledge of basic mathematical concepts. Some experience with `R and the tidyverse` is also beneficial though we'll try as much as possible to skim through the core concepts. To get started with R and the tidyverse, the best place would be [R for Data Science](http://r4ds.had.co.nz/) an O'Reilly book written by Hadley Wickham and Garrett Grolemund. It's designed to take you from knowing nothing about R or the tidyverse to having all the basic tools of data science at your fingertips.
+
+This [tutorial](https://learnr-examples.shinyapps.io/ex-setup-r/#section-welcome) will help you set up your computer to use R. It is for you if you need to:
+
+-   Install R on your computer
+
+-   Install the RStudio IDE
+
+-   Install the `tidyverse` R package
+
+You can skip this tutorial if you've already done these things.
+
+We'll require some packages to knock-off this module. You can have them installed as:
+
+`install.packages(c('tidyverse', 'tidymodels', 'glmnet', 'randomForest', 'xgboost', 'patchwork', 'paletteer', 'statip', 'summarytools'))`
+
+Alternatively, feel free to follow along this interactive tutorial by running the code chunks right from your browser.
+
+The `Python` edition of the learning path can be found at [this learning path](https://docs.microsoft.com/en-us/learn/paths/create-machine-learn-models/).
+
+**Why R?**
+
+> R is open-source and free of charge. It is a powerful programming language that can be used for many different purposes but specializes in data analysis, modeling, visualization, and machine learning. R is easily *extensible*; it has a vast ecosystem of packages, mostly user-contributed modules that focus on a specific theme, such as modeling, visualization, and so on. - [*`Tidy Modeling with R, MAX KUHN AND JULIA SILGE`*](https://www.tmwr.org/)
+
+Now, let's get started!
+
+![Artwork by \@allison_horst](images/encouRage.jpg){width="630"}
+
+## An introduction to regression ​👨‍🏫​✍️​👩‍🏫​
+
+Very simply put, **supervised learning** is the machine learning task of `learning a function` that `maps` an input (`feature`) to an output (`label`) based on `example input-output`pairs. It infers a function from labeled training data that can be applied to new features for which the labels are unknown, and predict them.
+
+You can think of this function like this:
+
+$$
+y = f(x)
+$$
+
+in which $y$ represents the label we want to predict and $x$ represents the features the model uses to predict it.
+
+In most cases, $x$ is actually a *vector* that consists of multiple feature values, so to be a little more precise, the function could be expressed like this:
+
+$$
+y = f([x_1,x_2,x_3...])
+$$
+
+The goal of `training` the model is to find a `function` that performs some kind of calculation to the $x$ values that produces the result $y$. We do this by applying a machine learning *algorithm* that tries to `fit` the $x$ values to a calculation that produces $y$ reasonably accurately for all of the cases in the training dataset.
+
+There are lots of machine learning algorithms for supervised learning, and they can be broadly divided into two types:
+
+-   **Classification algorithms**: Algorithms that predict to which category, or *class*, an observation belongs.
+
+<!-- -->
+
+-   **Regression algorithms**
+
+In this module, we'll focus on ***`regression`**.*
+
+*Regression* is a form of machine learning in which the goal is to create a model that can predict a `numeric`, `quantifiable value`; such as a price, amount, size, or other scalar number.
+
+For example, a company that rents bicycles might want to predict the expected number of rentals in a given day, based on the season, day of the week, weather conditions, and so on.
+
+![](images/cycle-rentals.png){width="500"}
+
+<br> **Training and evaluating a regression model ⚙️**
+
+Regression works by establishing a relationship between variables in the data that represent characteristics (known as the *`features`*) of the thing being observed, and the variable we're trying to predict (known as the *`label`*).
+
+In this case, we're observing information about days, so the features include things like the day of the week, month, temperature, rainfall, and so on; and the label is the number of bicycle rentals.
+
+To train the model, we start with a data sample containing the features as well as known values for the label - so in this case we need historic data that includes dates, weather conditions, and the number of bicycle rentals. We'll then split this data sample into two subsets:
+
+-   A *`training`*`dataset` to which we'll apply an algorithm that determines a function encapsulating the relationship between the feature values and the known label values.
+
+-   A *`validation`* or *`test`*`dataset` that we can use to evaluate the model by using it to generate predictions for the label and comparing them to the actual known label values.
+
+The use of historic data with known label values to train a model makes regression an example of *`supervised`*`machine learning`.
+
+<br> **A simple example 🚴⛅**
+
+Let's take a simple example to see how the training and evaluation process works in principle. Suppose we simplify the scenario so that we use a single feature, average daily temperature, to predict the bicycle rentals label.
+
+We start with some data that includes known values for the average daily temperature feature and the bicycle rentals label.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Dummy set containing a feature and label column
+dummy_set <- tibble(
+  Temperature = c(56, 61, 67, 72, 76, 82, 54, 62),
+  Rentals = c(115, 126, 137, 140, 152, 156, 114, 129)
+)
+
+# Display the data set
+dummy_set %>% 
+  kbl(align = 'l') %>% 
+  kable_material_dark()
+```
+
+<br> Now we'll take the first five of these observations and use them to train a regression model.
+
+> In reality, you'd *`randomly`* split the data into training and validation sets - it's important for the split to be random to ensure that each subset is `statistically similar`
+
+Our goal in `training` the model is to find a `function` (let's call it $f$) that we can *apply* to the temperature *`feature`* (which we'll call $x$) to *calculate* the rentals *`label`* (which we'll call $y$). In other words, we need to define the following function:
+
+$$
+f\ (x)\ =\ y
+$$
+
+Our training dataset looks like this:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Split data into training and test sets
+dummy_train_set <- dummy_set %>% 
+  dplyr::slice(1:5)
+
+dummy_test_set <- dummy_set %>% 
+  dplyr::slice(6:8)
+
+# Display the training set
+dummy_train_set %>% 
+  rename(c(x = Temperature, y = Rentals)) %>% 
+  kbl(align = 'l') %>% 
+  kable_material_dark()
+```
+
+<br> Anytime you are planning to implement modelling, it's always a good idea to explore your dataset. Let's see this graphically ![](images/ggplot2.png){width="20"} . The plots are interactive, so feel free to hover around 😄.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Display the training set
+theme_set(theme_light())
+train_plot <- dummy_set %>%
+  dplyr::slice(1:5) %>%
+  rename(c(x = Temperature, y = Rentals)) %>%
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(size = 1.6, color = "blue")+
+  xlim(50, 80)+
+  ylim(80, 160)+
+  labs(x = 'x (Temperature)', y = 'y (Rentals)')
+
+ggplotly(train_plot)
+```
+
+<br> Now we need to fit these values to a function, allowing for some random variation. You can probably see that the plotted points form an almost straight diagonal line - in other words, there's an apparent *`linear`*`relationship` between $x$ and $y$, so we need to find a linear function that's the best fit for the data sample.
+
+There are various algorithms we can use to determine this function, which will ultimately find a straight line with *minimal overall variance* from the plotted points; like this:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Display the training set
+theme_set(theme_light())
+train_plot <- dummy_set %>%
+  dplyr::slice(1:5) %>%
+  rename(c(x = Temperature, y = Rentals)) %>%
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(size = 1.6, color = "blue") +
+  geom_smooth(method = 'lm', se = F, fullrange = TRUE, linetype = 3, color = "black", alpha = 0.2) +
+  xlim(50, 80)+
+  ylim(80, 160)+
+  labs(x = 'x (Temperature)', y = 'y (Rentals)')
+
+ggplotly(train_plot)
+```
+
+<br> The line represents a linear function that can be used with any value of $x$ to apply the *slope* of the line and its *intercept* (where the line crosses the y axis when $x$ is 0) to calculate $y$. In this case, if we extended the line to the left we'd find that when $x$ is 0, $y$ is around 20, and the slope of the line is such that for each unit of $x$ you move along to the right, $y$ increases by around 1.7. Our $f$ function therefore can be calculated as:
+
+$$
+f(x) \ = \ 20\ +\ 1.7x
+$$
+
+Now that we've defined our`predictive function`, we can use it to `predict labels` for the `validation data` we held back and compare the predicted values (which we typically indicate with the symbol $\hat y$, or "y-hat") with the actual known $y$ values (Rentals).
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Display the test set
+dummy_test_set %>% 
+  mutate("$\\hat{y}$" =(20+1.7*Temperature)) %>%
+  kbl(align = 'l') %>% 
+  kable_material_dark()
+```
+
+<br> Let's see how the$\ y$ and $\hat y$ values compare in a plot:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Make predictions using the linear model
+dummy_pred <- dummy_test_set %>% 
+  mutate("$\\hat{y}$" =(20+1.7*Temperature))
+colors <- c("Actual Rentals" = "blue", "Predicted Rentals" = "red")
+# Comparison plot
+dummy_pred_plot <- dummy_pred %>% 
+  ggplot() +
+  geom_point(aes(x = Temperature, y = Rentals, color = "Actual Rentals"))+
+  geom_point(aes(x = Temperature, y = `$\\hat{y}$`, color = "Predicted Rentals")) +
+  geom_smooth(aes(x = Temperature, y = `$\\hat{y}$`), method = 'lm',se = F, fullrange = TRUE, linetype = 3, color = "black", alpha = 0.2) +
+  xlim(50, 90)+
+  ylim(80, 160)+
+  labs(x = 'x (Temperature)', y = 'Rentals' )+
+  scale_color_manual(name = "",values = colors)
+
+ggplotly(dummy_pred_plot)
+  
+```
+
+<br> The plotted points that are on the function line are the `predicted` $\hat y$ values calculated by the function, and the other plotted points are the `actual` $y$ values.
+
+There are various ways we can measure the variance between the predicted and actual values, and we can use these metrics to evaluate how well the model predicts.
+
+> *Machine learning is based on statistics and math, and it's important to be aware of specific terms that statisticians and mathematicians (and therefore data scientists) use. You can think of the difference between a predicted label value and the actual label value as a measure of **`error`**. However, in practice, the "actual" values are based on sample observations (which themselves may be subject to some random variance). To make it clear that we're comparing a predicted value (*$\hat y$*) with an observed value (*$y$*) we refer to the difference between them as the **`residuals`**. We can summarize the residuals for all of the validation data predictions to calculate the overall **loss** in the model as a measure of its predictive performance.*
+
+One of the most common ways to measure the loss is to square the individual residuals, sum the squares, and calculate the mean. Squaring the residuals has the effect of basing the calculation on *absolute* values (ignoring whether the difference is negative or positive) and giving more weight to larger differences. This metric is called the ***`Mean Squared Error`***.
+
+$$MSE= \frac{1}{n}  \sum_{i=1}^{n} (y_i - \hat y_i)^2$$ In other words, the MSE is the *mean* $\frac{1}{n}\sum_{i=1}^{n}$ of the *squares of the errors* $(y_i - \hat y_i)^2$
+
+For our validation data, the calculation looks like this:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Calculate residuals and square of residuals
+dummy_mse <- dummy_test_set %>% 
+  mutate("$\\hat{y}$" =(20+1.7*Temperature)) %>% 
+  select(-1) %>% 
+  mutate("$y - \\hat{y}$ " = (.[1] - .[2])) %>% 
+  mutate("$(y - \\hat{y})^2$ " = (.[3]^2)) %>% 
+  rename("$y$" = 1)
+
+dummy_mse %>% 
+  kbl(align = 'l') %>% 
+  kable_material_dark()
+```
+
+<br> Great! Let's go ahead and do some summary statistics on column $(y - \hat y)^2$ to obtain the total summation and the mean:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Calculate mse
+dummy_mse %>%
+  select(4) %>% 
+  summarise("$\\sum(y - \\hat{y})^2$ " = colSums(.), "$MSE$" = round(colMeans(.), 2)) %>% 
+  kbl(align = 'l') %>% 
+  kable_material_dark()
+```
+
+<br> So the loss for our model based on the `MSE` metric is `9.79`.
+
+So is that any good? 🤷 It's difficult to tell because MSE value is not expressed in a meaningful unit of measurement.
+
+However, we do know that the `lower` the value is, the `less loss` there is in the model; and therefore, the better it is predicting. This makes it a useful metric to compare two models and find the one that performs best.
+
+Sometimes, it's more useful to express the loss in the `same unit of measurement as the predicted label value itself` - in this case, the number of rentals. It's possible to do this by calculating the `square root of the MSE`, which produces a metric known, unsurprisingly, as the ***`Root Mean Squared Error`*** (RMSE).
+
+$$RMSE = \sqrt{9.79} = 3.13 $$
+
+So our model's RMSE indicates that the loss is just over 3, which you can interpret loosely as meaning that on average, incorrect predictions are wrong by around 3 rentals.
+
+There are many other metrics that can be used to measure loss in a regression. For example, $R^2$ **`(R-Squared)`** (sometimes known as *coefficient of determination*) is the correlation between $x$ and $y$ squared. This produces a value between 0 and 1 that measures the amount of `variance that can be explained by the model`.
+
+An interior value such as $R^2 = 0.7$ may be loosely interpreted as follows: "Seventy percent of the variance in the predicted label can be explained by the predicting features. The remaining thirty percent can be attributed to unknown, [lurking variables](https://en.wikipedia.org/wiki/Lurking_variable "Lurking variable") or inherent variability." Generally, the closer the $R^2$ value is to 1, the better the model predicts.
+
+## **Exercise - Train and evaluate a regression model:**
+
+Calculating a regression line for a simple binomial (two-variable) function from first principles is possible, but involves some mathematical effort. When you consider a `real-world dataset` in which $x$ is not a single feature value such as temperature, but a vector of `multiple variables` such as temperature, day of week, month, rainfall, and so on; the calculations become more complex.
+
+For this reason, data scientists generally use specialized machine learning frameworks to perform model training and evaluation. Such frameworks encapsulate common algorithms and provide useful functions for preparing data, fitting data to a model, and calculating model evaluation metrics.
+
+One commonly used machine learning framework in R, is the [**`tidymodels`**](https://www.tidymodels.org/), a collection of packages for modeling and machine learning using [**tidyverse**](https://www.tidyverse.org/) principles.
+
+-   Install many of the packages in the tidymodels ecosystem by running `install.packages("tidymodels")`.
+
+-   Run `library(tidymodels)` to load the core packages and make them available in your current R session.
+
+From this section forward, we'll explore a hands-on exercise where we'll use tidymodels to train and evaluate regression models using an example based on a real study in which data for a bicycle sharing scheme was collected and used to predict the number of rentals based on seasonality and weather conditions. We'll use a simplified version of the dataset from that study.
+
+> **Citation**: The data used in this exercise is derived from [Capital Bikeshare](https://www.capitalbikeshare.com/system-data) and is used in accordance with the published [license agreement](https://www.capitalbikeshare.com/data-license-agreement).
+
+Let's get right into it 🚀 ​🌌​​!
+
+## 1. Explore the Data 🕵️‍️
+
+The first step in any machine learning project is to `explore the data` that you will use to train a model. The goal of this exploration is to try to understand the `relationships` between its attributes; in particular, any apparent correlation between the *features* and the *label* your model will try to predict.
+
+This may require some work to detect and `fix issues in the data` (such as dealing with missing values, errors, or outlier values), `deriving new feature columns` by transforming or combining existing features (a process known as *feature engineering*), `normalizing` numeric features (values you can measure or count) so they're on a similar scale, and `encoding categorical features` (values that represent discrete categories) as numeric indicators.
+
+To achieve this important step in our adventure, we'll need some packages in the tidyverse! The tidyverse is an opinionated [**collection of R packages**](https://www.tidyverse.org/packages) designed for data science.
+
+We'll begin by loading the data frame from the [original repo](https://github.com/MicrosoftDocs/ml-basics) of this course and then `…` the real fun begins!
+
+```{r read_url, message=F, warning=F, exercise.setup = "setupA"}
+# Load the core tidyverse and make it available in your current R session.
+library(tidyverse)
+
+# Get the url of the raw version of the daily-bike-share.csv data
+url_data <- "https://raw.githubusercontent.com/MicrosoftDocs/ml-basics/master/data/daily-bike-share.csv"
+
+# Load the data into the R session
+bike_data <- read_csv(url_data) %>% 
+  # turn existing object into a tibble
+  as_tibble()
+
+# View first few rows
+bike_data %>% 
+  slice_head(n = 7)
+
+```
+
+Sometimes, we may want some little more information on our data. We can have a look at the `data` and`its structure` by using the [*glimpse()*](https://pillar.r-lib.org/reference/glimpse.html) function.
+
+```{r glimpse, message=F, warning=F}
+# Take a quick glance at the data
+glimpse(bike_data)
+
+```
+
+Good job!💪
+
+We can observe that `glimpse()` will give you the total number of rows (observations) and columns (variables), then, the first few entries of each variable in a row after the variable name. In addition, the *data type* of the variable is given immediately after each variable's name inside `< >`.
+
+The data consists of *731 rows* the following *14 columns*:
+
+-   **instant**: A unique row identifier
+
+-   **dteday**: The date on which the data was observed - in this case, the data was collected daily; so there's one row per date.
+
+-   **season**: A numerically encoded value indicating the season (1-spring, 2-summer, 3-fall, 4-winter)
+
+-   **yr**: The year of the study in which the observation was made (the study took place over two years (year 0 represents 2011, and year 1 represents 2012)
+
+-   **mnth**: The calendar month in which the observation was made (1-January ... 12-December)
+
+-   **holiday**: A binary value indicating whether or not the observation was made on a public holiday)
+
+-   **weekday**: The day of the week on which the observation was made (0-Sunday ... 6-Saturday)
+
+-   **workingday**: A binary value indicating whether or not the day is a working day (not a weekend or holiday)
+
+-   **weathersit**: A categorical value indicating the weather situation (1-clear, 2-mist/cloud, 3-light rain/snow, 4-heavy rain/hail/snow/fog)
+
+-   **temp**: The temperature in celsius (normalized)
+
+-   **atemp**: The apparent ("feels-like") temperature in celsius (normalized)
+
+-   **hum**: The humidity level (normalized)
+
+-   **windspeed**: The windspeed (normalized)
+
+-   **rentals**: The number of bicycle rentals recorded.
+
+In this dataset, `rentals` represents the `label` (the $y$ value) our model must be trained to predict. The other columns are potential features ($x$ values).
+
+As mentioned previously, you can perform some *feature engineering* to combine or derive new features. For example, let's add a new column named **day** to the data frame by extracting the day component from the existing **dteday** column. The new column represents the day of the month from 1 to 31.
+
+From the output of *glimpse(),* you'll realize that the **dteday** column is stored as a `"character"` vector. So, we'll first need to transform this to a date object.
+
+[Lubridate](https://lubridate.tidyverse.org/), a package in the tidyverse, provides tools that make it easier to parse and manipulate dates.
+
+> *If you are new to lubridate, the best place to start is the [date and times chapter](http://r4ds.had.co.nz/dates-and-times.html) in R for data science.*
+
+![Artwork by \@allison_horst](images/lubridate.jpg){width="450"}
+
+```{r dates_days, message=F, warning=F}
+# load lubridate into the R session
+library(lubridate)
+
+# Parse dates then extract days
+bike_data <- bike_data %>%
+  # Parse dates
+  mutate(dteday = mdy(dteday)) %>% 
+  #Get day
+  mutate(day = day(dteday))
+
+# extract the first 10 rows
+bike_data %>% 
+  slice_head(n = 10)
+  
+```
+
+<br> Such a beauty!🤩
+
+OK, let's start our analysis of the data by examining a few key descriptive statistics. We can use the `summarytools::descr()` function to neatly and quickly summarize the numeric features as well as the **rentals** label column.
+
+```{r summary, message=F, warning=F}
+# load package into the R session
+library(summarytools)
+
+# Obtain summary stats for feature and label columns
+bike_data %>% 
+  # Select features and label
+  select(c(temp, atemp, hum, windspeed, rentals)) %>% 
+  # Summary stats
+  descr(order = "preserve",
+        stats = c('mean', 'sd', 'min', 'q1', 'med', 'q3', 'max'),
+        round.digits = 6)
+
+```
+
+The statistics reveal some information about the distribution of the data in each of the numeric fields, including the number of observations (there are 731 records), the mean, standard deviation, minimum and maximum values, and the quartile values (the threshold values for 25%, 50% - which is also the median, and 75% of the data).
+
+From this, we can see that the mean number of daily rentals is around *848*; but there's a comparatively `large standard deviation`, indicating `a lot of variance` in the number of rentals per day.
+
+We might get a clearer idea of the distribution of rentals values by visualizing the data. Common plot types for visualizing numeric data distributions are *histograms* and *box plots*, so let's get our [`ggplot2`](https://ggplot2.tidyverse.org/) on and create one of each of these for the **rentals** column. [patchwork](https://patchwork.data-imaginist.com/) extends `ggplot` API by providing mathematical operators (such as `+` or `/`) for combining multiple plots. Yes, as easy as that! 📈📉
+
+> *In case you are new to R, R has several systems for making graphs, but `ggplot2` is one of the most elegant and most versatile. The best place to start in creating masterpiece visualisations is the [Data Visualisation chapter](https://r4ds.had.co.nz/data-visualisation.html) in R for data science*
+
+```{r plt_rentals, message=F, warning=F}
+library(patchwork)
+# Plot a histogram
+theme_set(theme_light())
+hist_plt <- bike_data %>% 
+  ggplot(mapping = aes(x = rentals)) + 
+  geom_histogram(bins = 100, fill = "midnightblue", alpha = 0.7) +
+  
+  # Add lines for mean and median
+  geom_vline(aes(xintercept = mean(rentals), color = 'Mean'), linetype = "dashed", size = 1.3) +
+  geom_vline(aes(xintercept = median(rentals), color = 'Median'), linetype = "dashed", size = 1.3 ) +
+  xlab("") +
+  ylab("Frequency") +
+  scale_color_manual(name = "", values = c(Mean = "red", Median = "yellow")) +
+  theme(legend.position = c(0.9, 0.9), legend.background = element_blank())
+
+# Plot a box plot
+box_plt <- bike_data %>% 
+  ggplot(aes(x = rentals, y = 1)) +
+  geom_boxplot(fill = "#E69F00", color = "gray23", alpha = 0.7) +
+    # Add titles and labels
+  xlab("Rentals")+
+  ylab("")
+
+
+# Combine plots
+(hist_plt / box_plt) +
+  plot_annotation(title = 'Rental Distribution',
+                  theme = theme(
+                    plot.title = element_text(hjust = 0.5)))
+  
+```
+
+<br> The plots show that the number of daily rentals ranges from 0 to just over 3,400. However, the mean (and median) number of daily rentals is closer to the low end of that range, with most of the data between 0 and around 2,200 rentals. The few values above this are shown in the box plot as small circles, indicating that they are *outliers* - in other words, unusually high or low values beyond the typical range of most of the data.
+
+We can do the same kind of visual exploration of the numeric features. One way to do this would be to use a `for loop` but ggplot2 provides a way of avoiding this entirely using `facets` 💁. Facets allow us to create subplots that each display one subset of the data.
+
+This will require us to transform our data into a *long* *format* using [tidyr::pivot_longer](https://tidyr.tidyverse.org/reference/pivot_longer.html), calculate some statistical summaries and then whip up a histogram for each feature.
+
+```{r plt_features, message=F, warning=F}
+# Create a data frame of numeric features & label
+numeric_features <- bike_data %>% 
+  select(c(temp, atemp, hum, windspeed, rentals))
+
+# Pivot data to a long format
+numeric_features <- numeric_features %>% 
+  pivot_longer(!rentals, names_to = "features", values_to = "values") %>%
+  group_by(features) %>% 
+  mutate(Mean = mean(values),
+         Median = median(values))
+
+
+# Plot a histogram for each feature
+numeric_features %>%
+  ggplot() +
+  geom_histogram(aes(x = values, fill = features), bins = 100, alpha = 0.7, show.legend = F) +
+  facet_wrap(~ features, scales = 'free')+
+  paletteer::scale_fill_paletteer_d("ggthemes::excel_Parallax") +
+  
+  # Add lines for mean and median
+  geom_vline(aes(xintercept = Mean, color = "Mean"), linetype = "dashed", size = 1.3 ) +
+  geom_vline(aes(xintercept = Median, color = "Median"), linetype = "dashed", size = 1.3 ) +
+  scale_color_manual(name = "", values = c(Mean = "red", Median = "yellow")) 
+  
+```
+
+<br> WooHoo! 🙌
+
+The numeric features seem to be more *normally* distributed, with the mean and median nearer the middle of the range of values, coinciding with where the most commonly occurring values are.
+
+> **Note**: The distributions are not *truly* *normal* in the statistical sense, which would result in a smooth, symmetric "bell-curve" histogram with the mean and mode (the most common value) in the center; but they do generally indicate that most of the observations have a value somewhere near the middle.
+
+We've explored the distribution of the `numeric` values in the dataset, but what about the `categorical` features? These aren't continuous numbers on a scale, so we can't use histograms; but we can plot a bar chart showing the count of each discrete value for each category.
+
+We'll follow the same procedure we used for the numeric feature.
+
+```{r plt_cat_features, message=F, warning=F}
+# Create a data frame of categorical features & label
+categorical_features <- bike_data %>% 
+  select(c(season, mnth, holiday, weekday, workingday, weathersit, day, rentals))
+
+# Pivot data to a long format
+categorical_features <- categorical_features %>% 
+  pivot_longer(!rentals, names_to = "features", values_to = "values") %>%
+  group_by(features) %>% 
+  mutate(values = factor(values))
+
+
+# Plot a bar plot for each feature
+categorical_features %>%
+  ggplot() +
+  geom_bar(aes(x = values, fill = features), alpha = 0.7, show.legend = F) +
+  facet_wrap(~ features, scales = 'free') +
+  paletteer::scale_fill_paletteer_d("ggthemr::solarized") +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_text(angle = 90))
+  
+
+```
+
+<br> Many of the categorical features show a more or less *uniform* distribution (meaning there's roughly the same number of rows for each category). Exceptions to this include:
+
+-   **holiday**: There are many fewer days that are holidays than days that aren't.
+
+-   **workingday**: There are more working days than non-working days.
+
+-   **weathersit**: Most days are category *1* (clear), with category *2* (mist and cloud) the next most common. There are comparatively few category *3* (light rain or snow) days, and no category *4* (heavy rain, hail, or fog) days at all.
+
+Now that we know something about the distribution of the data in our columns, we can start to look for relationships between the *features* and the *rentals label* we want to be able to predict.
+
+For the numeric features, we can create scatter plots that show the intersection of feature and label values.
+
+```{r plt_features_label, message=F, warning=F}
+
+# Plot a scatter plot for each feature
+numeric_features %>% 
+  mutate(corr_coef = cor(values, rentals)) %>%
+  mutate(features = paste(features, ' vs rentals, r = ', corr_coef, sep = '')) %>% 
+  ggplot(aes(x = values, y = rentals, color = features)) +
+  geom_point(alpha = 0.7, show.legend = F) +
+  facet_wrap(~ features, scales = 'free')+
+  paletteer::scale_color_paletteer_d("ggthemes::excel_Parallax")
+
+```
+
+<br> The *correlation* statistic, *r*, quantifies the apparent relationship. The correlation statistic is a value between -1 and 1 that indicates the strength of a linear relationship.
+
+```{r corr_features_label, message=F, warning=F}
+# Calculate correlation coefficient
+numeric_features %>% 
+  summarise(corr_coef = cor(values, rentals))
+
+```
+
+<br> The results aren't conclusive, but if you look closely at the scatter plots for `temp` and `atemp`, you can see a `vague diagonal trend` showing that higher rental counts tend to coincide with higher temperatures; and a correlation value of just over 0.5 for both of these features supports this observation. Conversely, the plots for `hum` and `windspeed` show a `slightly negative correlation`, indicating that there are fewer rentals on days with high humidity or windspeed.
+
+Now let's compare the categorical features to the label. We'll do this by creating box plots that show the distribution of rental counts for each category.
+
+```{r cat_features_label, message=F, warning=F}
+# Plot a box plot for each feature
+categorical_features %>%
+  ggplot() +
+  geom_boxplot(aes(x = values, y = rentals, fill = features), alpha = 0.9, show.legend = F) +
+  facet_wrap(~ features, scales = 'free') +
+  paletteer::scale_fill_paletteer_d("tvthemes::simpsons")+
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_text(angle = 90))
+```
+
+<br> The plots show some variance in the relationship between some category values and rentals. For example, there's a `clear difference` in the distribution of rentals on weekends (*weekday 0 or 6*) and those during the working week (*weekday 1 to 5*). Similarly, there are notable differences for `holiday` and `workingday` categories. There's a noticeable trend that shows different rental distributions in summer and fall months compared to spring and winter months. The `weathersit` category also seems to make a difference in rental distribution. The **day** feature we created for the day of the month shows little variation, indicating that it's probably not predictive of the number of rentals.
+
+Amazing 🤜🤛! We have just gone through the phase of **understanding the data**, often referred to as exploratory data analysis (`EDA`). EDA brings to light how the different variables are related to one another, their distributions, typical ranges, and other attributes. With these insights in mind, it's time to train some regression models!
+
+## 2. Train a Regression Model using Tidymodels ![](images/tdym.png){width="25"}
+
+![Artwork by \@allison_horst](images/parsnip.jpg){width="500"}
+
+Now that we've explored the data, it's time to use it to train a regression model that uses the features we've identified as `potentially predictive` to predict the **rentals** label. The first thing we need to do is create a data frame that contains the predictive features and the label. Also, we'll need to specify the roles of the predictors. Are they quantitative (integers/doubles) or are they nominal (characters/factors)?
+
+[`dplyr::select()`](https://dplyr.tidyverse.org/reference/select.html), [dplyr::mutate()](https://dplyr.tidyverse.org/reference/mutate.html) and [dplyr::across()](https://dplyr.tidyverse.org/reference/across.html) (for applying a function across multiple columns) will come in handy for what lies ahead!
+
+```{r df_features_label, message=F, warning=F}
+# Select desired features and labels
+bike_select <- bike_data %>% 
+  select(c(season, mnth, holiday, weekday, workingday, weathersit,
+           temp, atemp, hum, windspeed, rentals)) %>% 
+  mutate(across(1:6, factor))
+
+# Get a glimpse of your data
+glimpse(bike_select)
+```
+
+Alternatively 🤔, it would have been easier to just deselect the unwanted columns using `select(-c(…))` but we'll leave that for next time.
+
+We *could* train a model using all of the data; but it's common practice in supervised learning to *split* the data into two subsets; a (typically larger) set with which to train the model, and a smaller "hold-back" set with which to validate the trained model. This enables us to evaluate how well the model performs in order to get a better estimate of how your models will `perform` on `new data`. It's important to split the data *randomly* (rather than say, taking the first 70% of the data for training and keeping the rest for validation). This helps ensure that the two subsets of data are `statistically comparable` (so we validate the model with data that has a similar statistical distribution to the data on which it was trained).
+
+To randomly split the data, we'll use [`rsample::initial_split()`](https://rsample.tidymodels.org/reference/initial_split.html) . rsample is one of the many packages in the tidymodels.
+
+> The tidy modeling "verse" is a collection of packages for modeling and statistical analysis that share the underlying design philosophy, grammar, and data structures of the tidyverse. [Tidy Modeling with R](https://www.tmwr.org/) would be a good place to get up to speed with this amazing framework!
+
+```{r initial_split,message = F, warning=F}
+# Load the Tidymodels packages
+library(tidymodels)
+
+# Split 70% of the data for training and the rest for tesing
+set.seed(2056)
+bike_split <- bike_select %>% 
+  initial_split(prop = 0.7,
+  # splitting data evenly on the holiday variable
+                strata = holiday)
+
+# Extract the data in each split
+bike_train <- training(bike_split)
+bike_test <- testing(bike_split)
+
+glue::glue(
+  'Training Set: {nrow(bike_train)} rows
+  Test Set: {nrow(bike_test)} rows')
+```
+
+This results into the following two datasets:
+
+-   *bike_train*: subset of the dataset used to train the model.
+
+-   *bike_test*: subset of the dataset used to validate the model.
+
+Now ⏲, we're ready to train a model by fitting a suitable regression algorithm to the training data.
+
+Before embarking on more complex machine learning models, it's a good idea to build the simplest possible model to get an idea of what is going on. We'll use a `linear regression` algorithm, a common starting point for regression that works by trying to find a linear relationship between the $x$ values and the $y$ label. The resulting model is a function that conceptually defines a line where every possible $x$ and $y$ value combination intersect.
+
+In Tidymodels, you specify models using `parsnip()`. The goal of [parsnip](https://parsnip.tidymodels.org/) is to provide a tidy, unified interface to models that can be used to try a range of models by specifying three concepts:
+
+-   Model **type** differentiates models such as logistic regression, decision tree models, and so forth.
+
+-   Model **mode** includes common options like regression and classification; some model types support either of these while some only have one mode.
+
+-   Model **engine** is the computational tool which will be used to fit the model. Often these are R packages, such as **`"lm"`** or **`"ranger"`**
+
+In tidymodels, we capture that modeling information in a model specification, so setting up your model specification can be a good place to start.
+
+```{r model_spec,message=F,warning=F}
+# Build a linear model specification
+lm_spec <- 
+  # Type
+  linear_reg() %>% 
+  # Engine
+  set_engine("lm") %>% 
+  # Mode
+  set_mode("regression")
+
+```
+
+After a model has been *specified*, the model can be `estimated` or `trained` using the [`fit()`](https://tidymodels.github.io/parsnip/reference/fit.html) function, typically using a symbolic description of the model (a formula) and some data.
+
+> `rentals ~ .` means we'll fit `rentals` as the predicted quantity, explained by all the predictors/features ie, `.`
+
+```{r model_fit,message=F,warning=F}
+# Train a linear regression model
+lm_mod <- lm_spec %>% 
+  fit(rentals ~ ., data = bike_train)
+
+# Print the model object
+lm_mod
+```
+
+So, these are the coefficients that the model learned during training.
+
+### Evaluate the Trained Model
+
+It's time to see how the model performed 📏!
+
+How do we do this? Simple! Now that we've trained the model, we can use it to predict rental counts for the features we held back in our validation dataset using [parsnip::predict()](https://parsnip.tidymodels.org/reference/predict.model_fit.html). Then we can compare these predictions to the actual label values to evaluate how well (or not!) the model is working.
+
+```{r model_eval,message=F,warning=F}
+# Predict rentals for the test set and bind it to the test_set
+results <- bike_test %>% 
+  bind_cols(lm_mod %>% 
+    # Predict rentals
+    predict(new_data = bike_test) %>% 
+      rename(predictions = .pred))
+
+# Compare predictions
+results %>% 
+  select(c(rentals, predictions)) %>% 
+  slice_head(n = 10)
+```
+
+Comparing each prediction with its corresponding "ground truth" actual value isn't a very efficient way to determine how well the model is predicting. Let's see if we can get a better indication by visualizing a scatter plot that compares the predictions to the actual labels. We'll also overlay a trend line to get a general sense for how well the predicted labels align with the true labels.
+
+```{r model_eval_plt,message=F,warning=F}
+# Visualise the results
+results %>% 
+  ggplot(mapping = aes(x = rentals, y = predictions)) +
+  geom_point(size = 1.6, color = "steelblue") +
+  # Overlay a regression line
+  geom_smooth(method = "lm", se = F, color = 'magenta') +
+  ggtitle("Daily Bike Share Predictions") +
+  xlab("Actual Labels") +
+  ylab("Predicted Labels") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+<br> 🕵 📈There's a definite *diagonal trend*, and the intersections of the predicted and actual values are generally following the path of the trend line; but there's a fair amount of difference between the ideal function represented by the line and the results. This variance represents the *residuals* of the model - in other words, the difference between the label predicted when the model applies the coefficients it learned during training to the validation data, and the actual value of the validation label. These residuals when evaluated from the validation data indicate the expected level of *error* when the model is used with new data for which the label is unknown.
+
+You can quantify the residuals by calculating a number of commonly used evaluation metrics. We'll focus on the following three:
+
+-   `Mean Square Error (MSE)`: The mean of the squared differences between predicted and actual values. This yields a relative metric in which the smaller the value, the better the fit of the model
+
+-   `Root Mean Square Error (RMSE)`: The square root of the MSE. This yields an absolute metric in the same unit as the label (in this case, numbers of rentals). The smaller the value, the better the model (in a simplistic sense, it represents the average number of rentals by which the predictions are wrong!)
+
+-   `Coefficient of Determination (usually known as R-squared or R2)`: A relative metric in which the higher the value, the better the fit of the model. In essence, this metric represents how much of the variance between predicted and actual label values the model is able to explain.
+
+> [`yardstick`](https://yardstick.tidymodels.org/) is a package in the Tidymodels, used to estimate how well models are working based on the predictions it made for the validation data. You can find out more about these and other metrics for evaluating regression models in the [Metric types documentation](https://yardstick.tidymodels.org/articles/metric-types.html).
+
+```{r model_eval_met,message=F,warning=F}
+# Multiple regression metrics
+eval_metrics <- metric_set(rmse, rsq)
+
+# Evaluate RMSE, R2 based on the results
+eval_metrics(data = results,
+             truth = rentals,
+             estimate = predictions) %>% 
+  select(-2)
+
+
+
+```
+
+Great job 🙌! So now we've quantified the ability of our model to predict the number of rentals. It definitely has *some* predictive power, but we can probably do better!
+
+## 3. Summoning more powerful regression algorithms ![](images/parsnip_l.png){width="25"}
+
+The linear regression algorithm we used to train the model has some predictive capability, but there are many kinds of regression algorithm we could try, including:
+
+-   **Linear algorithms**: Not just the Linear Regression algorithm we used above (which is technically an *Ordinary Least Squares* algorithm), but other variants such as *Lasso* and *Ridge*.
+
+-   **Tree-based algorithms**: Algorithms that build a decision tree to reach a prediction.
+
+-   **Ensemble algorithms**: Algorithms that combine the outputs of multiple base algorithms to improve generalizability.
+
+> **Note**: See a full list of parsnip [model types and engines](https://www.tidymodels.org/find/parsnip/#models) and explore [model arguments](https://www.tidymodels.org/find/parsnip/#model-args).
+>
+> [Machine Learning for Social Scientists](https://cimentadaj.github.io/ml_socsci/tree-based-methods.html#boosting) provides a very good explanation and introduction to the what we just discussed above. I would highly recommend it!
+
+#### Try Another Linear Algorithm
+
+Let's try training our regression model by using a `Lasso` (**least absolute shrinkage and selection operator**) algorithm. In Tidymodels, we can do this easily by just changing the model specification then the rest is a breeze😎!
+
+Here we'll set up one model specification for lasso regression; I picked a value for `penalty` (sort of randomly) and I set `mixture = 1` for lasso (When mixture = 1, it is a pure lasso model).
+
+For convenience, we'll rewrite the whole code from splitting data to evaluating model performance.
+
+```{r model_lasso,message=F,warning=F}
+# Split 70% of the data for training and the rest for tesing
+set.seed(2056)
+bike_split <- bike_select %>% 
+  initial_split(prop = 0.7, strata = holiday)
+
+# Extract the data in each split
+bike_train <- training(bike_split)
+bike_test <- testing(bike_split)
+
+# Build a lasso model specification
+lasso_spec <-
+  # Type
+  linear_reg(penalty = 1, mixture = 1) %>% 
+  # Engine
+  set_engine('glmnet') %>% 
+  # Mode
+  set_mode('regression')
+
+# Train a lasso regression model
+lasso_mod <- lasso_spec %>% 
+  fit(rentals ~ ., data = bike_train)
+
+# Make predictions for test data
+results <- bike_test %>% 
+  bind_cols(lasso_mod %>% predict(new_data = bike_test) %>% 
+              rename(predictions = .pred))
+
+# Evaluate the model
+lasso_metrics <- eval_metrics(data = results,
+                                    truth = rentals,
+                                    estimate = predictions) %>%
+  select(-2)
+
+
+# Plot predicted vs actual
+lasso_plt <- results %>% 
+  ggplot(mapping = aes(x = rentals, y = predictions)) +
+  geom_point(size = 1.6, color = 'darkorchid') +
+  # overlay regression line
+  geom_smooth(method = 'lm', color = 'black', se = F) +
+  ggtitle("Daily Bike Share Predictions") +
+  xlab("Actual Labels") +
+  ylab("Predicted Labels") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Return evaluations
+list(lasso_metrics, lasso_plt)
+  
+  
+```
+
+🤔 Hmmmm... Not much of an improvement. We could improve the performance metrics by estimating the right regularization hyperparameter `penalty`. This can be figured out by using `resampling` and `tuning` the model which we'll discuss in just a few.
+
+#### Try a Decision Tree Algorithm
+
+As an alternative to a linear model, there's a category of algorithms for machine learning that uses a `tree-based` approach in which the features in the dataset are examined in a series of evaluations, each of which results in a *branch* in a *decision tree* based on the feature value. At the end of each series of branches are leaf-nodes with the predicted label value based on the feature values.\
+
+> *The [Decision Trees Chapter](https://bradleyboehmke.github.io/HOML/DT.html) in Hands-on Machine Learning with R will provide you with a strong foundation in decision trees.*
+
+\
+It's easiest to see how this works with an example. Let's train a Decision Tree regression model using the bike rental data. After training the model, the code below will print the model definition and a text representation of the tree it uses to predict label values.
+
+```{r decision_tree,message=F,warning=F}
+# Build a decision tree specification
+tree_spec <- decision_tree() %>% 
+  set_engine('rpart') %>% 
+  set_mode('regression')
+
+# Train a decision tree model 
+tree_mod <- tree_spec %>% 
+  fit(rentals ~ ., data = bike_train)
+
+# Print model
+tree_mod
+
+
+```
+
+\
+So now we have a tree-based model; but is it any good? Let's evaluate it with the test data.
+
+```{r decision_tree_eval,message=F,warning=F}
+# Make predictions for test data
+results <- bike_test %>% 
+  bind_cols(tree_mod %>% predict(new_data = bike_test) %>% 
+              rename(predictions = .pred))
+
+# Evaluate the model
+tree_metrics <- eval_metrics(data = results,
+                                  truth = rentals,
+                                  estimate = predictions) %>% 
+  select(-2)
+
+
+# Plot predicted vs actual
+tree_plt <- results %>% 
+  ggplot(mapping = aes(x = rentals, y = predictions)) +
+  geom_point(color = 'tomato') +
+  # overlay regression line
+  geom_smooth(method = 'lm', color = 'steelblue', se = F) +
+  ggtitle("Daily Bike Share Predictions") +
+  xlab("Actual Labels") +
+  ylab("Predicted Labels") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Return evaluations
+list(tree_metrics, tree_plt)
+
+```
+
+Our decision tree really failed to generalize 🤦. We can see that it's predicting constant values for a given range of predictors. We could probably improve this by tuning the model's `hyperparameters`. We'll see this in just a bit.
+
+#### Try an Ensemble Algorithm
+
+Ensemble algorithms work by combining multiple base estimators to produce an optimal model, either by applying an *aggregate function* to a collection of base models (sometimes referred to a `bagging`) or by building a sequence of models that build on one another to improve predictive performance (referred to as `boosting`).
+
+For example, let's try a Random Forest model, which applies an averaging function to multiple Decision Tree models for a better overall model.
+
+```{r random_forest,message=F,warning=F}
+# Build a random forest model specification
+rf_spec <- rand_forest() %>% 
+  set_engine('randomForest') %>% 
+  set_mode('regression')
+
+# Train a random forest model 
+rf_mod <- rf_spec %>% 
+  fit(rentals ~ ., data = bike_train)
+
+
+# Print model
+rf_mod
+
+```
+
+\
+So now we have a random forest model; but is it any good? Let's evaluate it with the test data.
+
+```{r random_forest_eval,message=F,warning=F}
+# Make predictions for test data
+results <- bike_test %>% 
+  bind_cols(rf_mod %>% predict(new_data = bike_test) %>% 
+              rename(predictions = .pred))
+
+# Evaluate the model
+rf_metrics <- eval_metrics(data = results,
+                                  truth = rentals,
+                                  estimate = predictions) %>% 
+  select(-2)
+
+
+# Plot predicted vs actual
+rf_plt <- results %>% 
+  ggplot(mapping = aes(x = rentals, y = predictions)) +
+  geom_point(color = '#6CBE50FF') +
+  # overlay regression line
+  geom_smooth(method = 'lm', color = '#2B7FF9FF', se = F) +
+  ggtitle("Daily Bike Share Predictions") +
+  xlab("Actual Labels") +
+  ylab("Predicted Labels") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Return evaluations
+list(rf_metrics, rf_plt)
+
+```
+
+🤩 Whoa! That's a step in the right direction.
+
+Let's also try a *boosting* ensemble algorithm. We'll use a `Gradient Boosting` estimator, which like a Random Forest algorithm builds multiple trees, but instead of building them all independently and taking the average result, each tree is `built` on the `outputs` of the `previous one` in an attempt to incrementally reduce the *loss* (error) in the model.
+
+> \
+> *The [Gradient Boosting](https://bradleyboehmke.github.io/HOML/gbm.html) chapter in Hands-on Machine Learning with R, will provide you with the fundamentals to understanding Gradient Boosting Machines.*
+
+In this tutorial, we'll demonstrate how to implement *Gradient Boosting Machines* using the **xgboost** engine.
+
+```{r xgboost,message=F,warning=F}
+# Build an xgboost model specification
+boost_spec <- boost_tree() %>% 
+  set_engine('xgboost') %>% 
+  set_mode('regression')
+
+# Train an xgboost model 
+boost_mod <- boost_spec %>% 
+  fit(rentals ~ ., data = bike_train)
+
+
+# Print model
+boost_mod
+
+```
+
+From the output, we actually see that Gradient Boosting Machines combine a series of base models, each of which is created sequentially and depends on the previous models, in an attempt to incrementally reduce the error in the model.
+
+So now we have an XGboost model; but is it any good🤷? Again, let's evaluate it with the test data.
+
+```{r xgboost_eval,message=F,warning=F}
+# Make predictions for test data
+results <- bike_test %>% 
+  bind_cols(boost_mod %>% predict(new_data = bike_test) %>% 
+              rename(predictions = .pred))
+
+# Evaluate the model
+boost_metrics <- eval_metrics(data = results,
+                                  truth = rentals,
+                                  estimate = predictions) %>% 
+  select(-2)
+
+
+# Plot predicted vs actual
+boost_plt <- results %>% 
+  ggplot(mapping = aes(x = rentals, y = predictions)) +
+  geom_point(color = '#4D3161FF') +
+  # overlay regression line
+  geom_smooth(method = 'lm', color = 'black', se = F) +
+  ggtitle("Daily Bike Share Predictions") +
+  xlab("Actual Labels") +
+  ylab("Predicted Labels") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Return evaluations
+list(boost_metrics, boost_plt)
+```
+
+Okay not bad👌! We are definitely getting somewhere. Can we do better? Let's take a look at `Data Preprocessing` and `model hyperparameters`.
+
+## 4. Recipes and Workflows
+
+### Preprocess the Data using recipes ![](images/logo_recipe.png){width="30"}
+
+We trained a model with data that was loaded straight from a source file, with only moderately successful results. In practice, it's common to perform some preprocessing of the data to make it easier for the algorithm to fit a model to it.
+
+In this section, we'll explore another tidymodels package, [recipes](https://tidymodels.github.io/recipes/), which is designed to help you preprocess your data *before* training your model. A recipe is an object that defines a series of steps for data processing.
+
+There's a huge range of preprocessing transformations you can perform to get your data ready for modeling, but we'll limit ourselves to a few common techniques:
+
+#### Scaling numeric features
+
+Normalizing numeric features so they're on the same scale prevents features with large values from producing coefficients that disproportionately affect the predictions. For example, suppose your data includes the following numeric features:
+
+|  A  |  B  |  C  |
+|:---:|:---:|:---:|
+|  3  | 480 | 65  |
+
+Normalizing these features to the same scale may result in the following values (assuming A contains values from 0 to 10, B contains values from 0 to 1000, and C contains values from 0 to 100):
+
+|  A  |  B   |  C   |
+|:---:|:----:|:----:|
+| 0.3 | 0.48 | 0.65 |
+
+There are multiple ways you can scale numeric data, such as calculating the minimum and maximum values for each column and assigning a proportional value between 0 and 1, or by using the mean and standard deviation of a normally distributed variable to maintain the same *spread* of values on a different scale.
+
+#### Encoding categorical variables
+
+This involves translating a column with categorical values into one or more numeric columns that take the place of the original.
+
+Machine learning models work best with numeric features rather than text values, so you generally need to convert categorical features into numeric representations. For example, suppose your data includes the following categorical feature.
+
+| Size |
+|:----:|
+|  S   |
+|  M   |
+|  L   |
+
+You can apply *ordinal encoding* to substitute a unique integer value for each category, like this:
+
+| Size |
+|:----:|
+|  0   |
+|  1   |
+|  2   |
+
+Another common technique is to create "*dummy*" or *indicator variables* which replace the original categorical feature with numeric columns whose values are either 1 or 0. This can be shown as:
+
+| Raw Data |  M  |  L  |
+|:--------:|:---:|:---:|
+|    S     |  0  |  0  |
+|    M     |  1  |  0  |
+|    L     |  0  |  1  |
+
+In R, the convention is to *exclude* a column for the first factor level (`S`, in this case). The reasons for this include `simplicity` and reducing `linear dependencies`. The full set of encodings can be used for some models. This is traditionally called the "one-hot" encoding and can be achieved using the `one_hot` argument of `step_dummy()`.
+
+> The chapter [Feature engineering with recipes](https://www.tmwr.org/recipes.html) in *`Tidy Modeling with R`* contains more information on how to transform and encode data for modelling.
+
+Now, let's bike forth and create some recipes ​🔪​**🚴!**
+
+```{r recipes,message=F,warning=F}
+# Specify a recipe
+bike_recipe <- recipe(rentals ~ ., data = bike_train) %>% 
+  step_normalize(all_numeric_predictors()) %>% 
+  step_dummy(all_nominal_predictors()) 
+
+bike_recipe
+
+
+# Summary of the recipe
+summary(bike_recipe)
+```
+
+We just created our first recipe containing an outcome and its corresponding predictors, with the numeric predictors normalized and the nominal predictors converted to a quantitative format 🙌! Let's quickly break it down:
+
+-   The call to `recipe()` with a formula tells the recipe the *roles* of the variables (e.g., predictor, outcome) using `bike_train` data as the reference. This can be seen from the results of `summary(bike_recipe)`
+
+-   `step_normalize(all_numeric_predictors())` specifies that all numeric predictors should be normalized.
+
+-   `step_dummy(all_nominal_predictors())` specifies that all predictors that are currently factor or charactor should be converted to a quantitative format (1s/0s).
+
+Great! Now that we have a recipe, the next step would be to create a model specification (which we already did). In this case, let's recreate an `xgboost` model specification. Tree based models created using the xgboost engine typically require one to create dummy variables.
+
+> The chapter [Recommended preprocessing](https://www.tmwr.org/pre-proc-table.html) in Tidy Modelling with R provides preprocessing recommendations that are needed for various modelling functions.
+
+```{r xgboost_spec2,message=F,warning=F}
+boost_spec <- boost_tree() %>% 
+  set_engine('xgboost') %>% 
+  set_mode('regression')
+```
+
+"Wait!", you'll say, "How do we combine this model specification with the data preprocessing we need to do from our recipe? 🤔"
+
+Well, welcome to modelling `workflows` 😊. This is what we'd call *pipelines* in *Python*.
+
+### Bundling it all together using a workflow ![](images/workflow_logo.png){width="28" height="32"}.
+
+The [**workflows**](https://workflows.tidymodels.org/) package allows the user to bind modeling and preprocessing objects together. You can then fit the entire workflow to the data, so that the model encapsulates all of the preprocessing steps as well as the algorithm.
+
+```{r boost_workflow,message=F,warning=F}
+# Create the workflow
+boost_workflow <- workflow() %>% 
+  add_recipe(bike_recipe) %>% 
+  add_model(boost_spec)
+
+boost_workflow
+
+```
+
+The `workflow` object provides quite an informative summary of the preprocessing steps that will be done by the recipe and also the model specification 👌👌. Into the bargain, a **`workflow()`** can be fit in much the same way a model can.
+
+```{r boost_workflow_fit,message=F,warning=F}
+# Train the model
+boost_workflow <- boost_workflow %>% 
+  fit(data = bike_train)
+
+#boost_workflow
+```
+
+Now that we have our *fitted workflow*, how do we make some predictions🔮? `predict()` can be used on a workflow in the same way as on a model!
+
+Now, let's make some predictions on the first 6 observations of our test set.
+
+```{r boost_workflow_pred,message=F,warning=F}
+boost_workflow %>% 
+  predict(new_data = bike_test %>% dplyr::slice(1:6))
+```
+
+How convenient workflows are!💁
+
+So probably you may be wondering why we haven't made predictions on the whole test set, evaluated performance and created some pretty graphs. We'll get right into that, but first, let's address a more pressing issue; a boosted tree's specification:
+
+```{r}
+args(boost_tree)
+```
+
+Those are a lot of model arguments: `mtry`, `trees`, `min_n`, `tree_depth`, `learn_rate`, `loss_reduction`, `sample_size`, `stop_iter` 🤯🤯!
+
+Now, this begs the question:
+
+how do we know what values we should use?🤔
+
+This brings us to `model tuning`.
+
+## 5. Tune model hyperparameters ![](images/tune_logo.png){width="25" height="29"}
+
+Models have parameters with unknown values that must be estimated in order to use the model for predicting. Some model parameters cannot be learned directly from a dataset during model training; these kinds of parameters are called **hyperparameters** or **tuning parameters**.
+
+Instead of learning these kinds of hyperparameters during model training, we can *estimate* the *best values* for these by training many models on a `simulated data set` and measuring how well all these models perform. This process is called **tuning**.
+
+> Simple models with small datasets can often be fit in a single step, while larger datasets and more complex models tend to achieve better results by fitting repeatedly using simulated data. If the prediction is accurate enough, we consider the model trained. If not, we adjust the model slightly and loop again.
+
+We won't go into the details of each hyperparameter, but they work together to affect the way the algorithm trains a model. For instance in boosted trees,
+
+-   `min_n` forces the tree to discard any node that has a number of observations below your specified minimum.
+
+-   tuning the value of `mtry` controls the number of variables that will be used at each split of a decision tree.
+
+-   tuning `tree_depth`, on the other hand, helps by [stopping](https://bradleyboehmke.github.io/HOML/DT.html#early-stopping) our tree from growing after it reaches a certain depth - [Tune model parameters](https://www.tidymodels.org/start/tuning/), Tidymodels Get Started.
+
+-   `Learning rate`, sets how much a model is adjusted during each training cycle. A high learning rate means a model can be trained faster, but if it's too high the adjustments can be so large that the model is never 'finely tuned' and not optimal - [Microsoft Learn](https://docs.microsoft.com/en-us/learn/modules/train-evaluate-regression-models/6-improve-models), Build Machine Learning Models.
+
+In many cases, the default values provided by Tidymodels will work well (see the defaults by typing `help("boost_tree")` on your console); but there may be some advantage in modifying hyperparameters to get better predictive performance or reduce training time.
+
+So how do you know what hyperparameter values you should use? Well, in the absence of a deep understanding of how the underlying algorithm works, you'll need to experiment. Fortunately, Tidymodels provides a way to *tune* hyperparameters by trying multiple combinations and finding the best result for a given performance metric.
+
+> [Machine Learning for Social Scientists](https://cimentadaj.github.io/ml_socsci/tree-based-methods.html#boosting) provides a very good explanation and introduction to Tree based models e.g Decision trees, Random Forests, Boosted trees etc. I would highly recommend it!
+
+#### Identify tuning parameters.
+
+How can we signal to tidymodels functions which arguments (in our case `cost_complexity`, `tree_depth`, `min_n`) should be optimized? Parameters are marked for tuning by assigning them a value of `tune()`.
+
+Next let's build our model specification with some tuning and then put our recipe and model specification together in a **`workflow()`**, for ease of use.
+
+```{r boost_spec_tune,message=F,warning=F}
+# Specify a recipe
+bike_recipe <- recipe(rentals ~ ., data = bike_train) %>% 
+  step_normalize(all_numeric_predictors()) %>% 
+  step_dummy(all_nominal_predictors()) 
+
+
+# Make a tunable model specification
+boost_spec <- boost_tree(trees = 50,
+                         tree_depth = tune(),
+                         learn_rate = tune()) %>% 
+  set_engine('xgboost') %>% 
+  set_mode('regression')
+
+
+# Bundle a recipe and model spec using a workflow
+boost_workflow <- workflow() %>% 
+  add_recipe(bike_recipe) %>% 
+  add_model(boost_spec)
+
+boost_workflow
+```
+
+#### Create a tuning grid.
+
+Good job! Now that we have specified what parameter to tune, we'll need to figure out a set of possible values to try out then choose the best.
+
+To do this, we'll create a grid! To tune our hyperparameters, we need a set of possible values for each parameter to try. In this case study, we'll work through a regular grid of hyperparameter values.
+
+```{r boost_spec_grid, exercise = F, exercise.eval = F,message=F,warning=T}
+
+# Create a grid of tuning parameters
+tree_grid <- grid_regular(tree_depth(),
+                          # Use default ranges if you are not sure
+                          learn_rate(range = c(0.01, 0.3),trans = NULL), levels = 5)
+
+# Display some of the penalty values that will be used for tuning 
+tree_grid
+
+```
+
+The function [`grid_regular()`](https://tidymodels.github.io/dials/reference/grid_regular.html) is from the [dials](https://tidymodels.github.io/dials/) package. It chooses sensible values to try for each hyperparameter; here, we asked for 5 of each. Since we have two to tune, `grid_regular()` returns 5×5 = 25 different possible tuning combinations to try in a tidy tibble format.
+
+#### Let's sample our data.
+
+As we pointed out earlier, hyperparameters cannot be learned directly from the training set. Instead, they are estimated using simulated data sets created from a process called resampling. One resampling approach is `cross-validation`.
+
+Cross-validation involves taking your training set and randomly dividing it up evenly into `V` subsets/folds. You then use one of the folds for validation and the rest for training, then you repeat these steps with all the subsets and combine the results, usually by taking the mean. This is just one round of cross-validation. Sometimes practictioners do this more than once, perhaps 5 times.
+
+```{r bike_folds, exercise = F, exercise.eval = F,message=F,warning=T}
+set.seed(1020)
+# 5 fold CV repeated once
+bike_folds <- vfold_cv(data = bike_train, v = 5, repeats = 1)
+
+bike_folds
+```
+
+#### Time to tune
+
+Now, it's time to tune the grid to find out which penalty results in the best performance!
+
+```{r tune_grid, exercise = F, exercise.eval = F,message=F,warning=F}
+doParallel::registerDoParallel()
+
+# Model tuning via grid search
+set.seed(2020)
+tree_grid <- tune_grid(
+  object = boost_workflow,
+  resamples = bike_folds,
+  grid = tree_grid
+)
+```
+
+#### Visualize tuning results
+
+Now that we have trained models for many possible penalty parameter, let's explore the results.
+
+As a first step, we'll use the function **`collect_metrics()`** to extract the performance metrics from the tuning results.
+
+```{r grid_res, exercise = F, exercise.eval = F,message=F,warning=F}
+# Extract performance metrics
+tree_grid %>% 
+  collect_metrics() %>% 
+  slice(1:5)
+
+```
+
+Once we have our tuning results, we can both explore them through visualization and then select the best result.
+
+```{r grid_viz, exercise = F, exercise.eval = F,message=F,warning=F}
+# Visualize the results
+tree_grid %>% 
+  collect_metrics() %>% 
+  mutate(tree_depth = factor(tree_depth)) %>% 
+  ggplot(mapping = aes(x = learn_rate, y = mean,
+                       color = tree_depth)) +
+  geom_line(size = 0.6) +
+  geom_point(size = 2) +
+  facet_wrap(~ .metric, scales = 'free', nrow = 2)+
+  scale_color_viridis_d(option = "plasma", begin = .9, end = 0)
+```
+
+We can see that our "stubbiest" tree, with a depth of 1, is the worst model according to both metrics (rmse, rsq) and across all candidate values of `learn_rate`. A tree depth of 4 and a learn_rate of 0.1 seems to do the trick! Let's investigate these tuning parameters further. We can use `show_best()` to display the top sub-models and their performance estimates.
+
+```{r grid_show, exercise = F, exercise.eval = F,message=F,warning=F}
+tree_grid %>% 
+  show_best('rmse')
+```
+
+We can then use `select_best()` to find the tuning parameter combination with the best performance values.
+
+```{r best_tree, exercise = F, exercise.eval = F,message=F,warning=F}
+best_tree <- tree_grid %>% 
+  select_best('rmse')
+
+best_tree
+```
+
+## 6. Finalizing our model
+
+Now that we have the best performance values, we can use `tune::finalize_workflow()` to update (or "finalize") our workflow object with the best estimate values for tree_depth and learn_rate.
+
+```{r finalize, exercise = F, exercise.eval = F,message=F,warning=F}
+# Update workflow
+final_wf <- boost_workflow %>% 
+  finalize_workflow(best_tree)
+
+final_wf
+```
+
+Our tuning is done! 🥳 We have updated our workflow with the best estimated hyperparameter values!
+
+#### The last fit: back to our test set.
+
+Finally, let's return to our test data and estimate the model performance we expect to see with new data. We can use the function [`last_fit()`](https://tidymodels.github.io/tune/reference/last_fit.html) with our finalized model; this function *fits* the finalized model on the full training data set and *evaluates* the finalized model on the testing data.
+
+```{r last_fit, exercise = F, exercise.eval = F,message=F,warning=F}
+# Make a last fit
+final_fit <- final_wf %>% 
+  last_fit(bike_split)
+
+
+# Collect metrics
+final_fit %>% 
+  collect_metrics()
+```
+
+How's that for a tune 🎶 ​💃​🕺​​​! Also, there seems to be some improvement in the evaluation metrics compared to using the default values for *learn_rate* and *tree_depth* hyperparameters. Now, we leave it to you to explore how tuning the other hyperparameters affects the model performance.
+
+We've now seen a number of common techniques used to train predictive models for regression. In a real project, you'd likely try a few more algorithms, hyperparameters, and preprocessing transformations; but by now you should have got the general idea of the procedure to follow. You can explore the [reference docs](https://www.tidymodels.org/find/parsnip/#models), or use the `args()` function to see which parsnip object arguments are available.
+
+> Use this [Tidymodels reference page](https://www.tidymodels.org/find/parsnip/#models) to explore model types and engines and to explore model arguments.
+
+Let's now explore how you can use the trained model with new data.
+
+#### Use the Trained Model
+
+We'll begin by saving our model but first, let's extract the *trained workflow* object from `final_fit` object.
+
+```{r last_fit_wf, exercise = F, exercise.eval = F,message=F,warning=F}
+# Extract trained workflow
+bike_boost_model <- final_fit$.workflow[[1]]
+
+```
+
+Now, we can save this model to be used later.
+
+```{r s_last_fit_wf, exercise = F, exercise.eval = F,message=F,warning=F}
+# Save trained workflow
+saveRDS(bike_boost_model, here::here("models", "bike_boost_model.rds"))
+beepr::beep(0)
+```
+
+Now, we can load it whenever we need it, and use it to predict labels for new data. This is often called *`scoring`* or *`inferencing`*.
+
+For example, lets try and predict some values from our test set using the saved model.
+
+```{r demo_last_fit_wf, exercise = F, exercise.eval = F,message=F,warning=F}
+# Extract predictors
+bike_new <- bike_test %>% 
+  slice(5:9)
+
+# Load the model
+loaded_model <- readRDS("models/bike_boost_model.rds")
+
+
+# Use the model to predict rentals
+results <- bike_new %>% 
+  bind_cols(loaded_model %>% predict(new_data = bike_new))
+
+results
+
+```
+
+PeRfect!🐱 All is well that ends with a working model, time to end the cycle **🚴**!
+
+## 7. Summary
+
+We need a bRake, don't we? 😅 We hope you had a wheelie good time!
+
+In this module, we learnt how regression can be used to create a machine learning model that predicts numeric values. We cycled off by doing some Exploratory Data Analysis using the `Tidyverse` then we used the `Tidymodels` framework in `R` to train and evaluate a regression model using different algorithms, do some data preprocessing, tuned some hyperparameters and made better predictions.
+
+While `Tidymodels` and `scikit-learn` (Python) are popular framework for writing code to train regression models, you can also create machine learning solutions for regression using the graphical tools in Microsoft Azure Machine Learning. You can learn more about no-code development of regression models using Azure Machine Learning in the [Create a Regression Model with Azure Machine Learning designer](https://docs.microsoft.com/en-us/learn/modules/create-regression-model-azure-machine-learning-designer/) module.
+
+#### **Challenge: Predict Real Estate Prices**
+
+Think you're ready to create your own regression model? Try the challenge of predicting real estate property prices in the [02 - Real Estate Regression Challenge.ipynb](https://github.com/MicrosoftDocs/ml-basics/blob/master/challenges/02%20-%20Real%20Estate%20Regression%20Challenge.ipynb) notebook! Find the data [here](https://github.com/MicrosoftDocs/ml-basics/tree/master/challenges/data).
+
+#### THANK YOU TO:
+
+`Allison Horst` for creating the amazing illustrations that make R more welcoming and engaging. Find more illustrations at her [gallery](https://www.google.com/url?q=https://github.com/allisonhorst/stats-illustrations&sa=D&source=editors&ust=1626380772530000&usg=AOvVaw3zcfyCizFQZpkSLzxiiQEM).
+
+`Bethany`, *Gold Microsoft Learn Student Ambassador*, for the valuable feedback and suggestions.
+
+#### FURTHER READING
+
+-   Max Kuhn and Julia Silge, [*Tidy Modeling with R*](https://www.tmwr.org/)*.*
+
+-   Kuhn, M, and K Johnson. 2013. *Applied Predictive Modeling*. Springer.
+
+-   Bradley Boehmke & Brandon Greenwell, [*Hands-On Machine Learning with R*](https://bradleyboehmke.github.io/HOML/)*.*
+
+-   Jorge Cimentada, [*Machine Learning for Social Scientists*](https://cimentadaj.github.io/ml_socsci/)*.*
+
+-   Tidy models [reference website](https://www.tidymodels.org/start/).
+
+-   H. Wickham and G. Grolemund, [*R for Data Science: Visualize, Model, Transform, Tidy, and Import Data*](https://r4ds.had.co.nz/).
+
+Be sure to join us in the next R module where we'll slice and dice some classification algorithms.
+
+Till then ...
+
+Happy learning,
+
+[Eric (R_ic)](https://twitter.com/ericntay), *Gold Microsoft Learn Student Ambassador*.
+
+![Artwork by \@allison_horst](images/r_learners_sm.jpeg){width="569"}
+
+
+
+
+```{r eval=FALSE, include=FALSE}
+# resultbs <- rsconnect::rpubsUpload(
+# title = 'Create machine leaRning models: Train and Evaluate Regression Models',
+# contentFile = "C:/Users/ADMIN/Desktop/Intoduction to Python for data science/R for data science/aRduino/create_machine_learning_models_R/02_Regression/Train_evaluate_regression_models.html",
+# originalDoc = "Train_evaluate_regression_models.Rmd")
+```
+
+
+
