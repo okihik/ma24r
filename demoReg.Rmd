@@ -47,7 +47,9 @@ Modules that will be covered in this learning path include:
 
 ### **Prerequisites**
 
-This learning path assumes knowledge of basic mathematical concepts. Some experience with `R and the tidyverse` is also beneficial though we'll try as much as possible to skim through the core concepts. To get started with R and the tidyverse, the best place would be [R for Data Science](http://r4ds.had.co.nz/) an O'Reilly book written by Hadley Wickham and Garrett Grolemund. It's designed to take you from knowing nothing about R or the tidyverse to having all the basic tools of data science at your fingertips.
+This learning path assumes knowledge of basic mathematical concepts. 
+Some experience with `R and the tidyverse` is also beneficial though we'll try as much as possible to skim through the core concepts. 
+To get started with R and the tidyverse, the best place would be [R for Data Science](http://r4ds.had.co.nz/) an O'Reilly book written by Hadley Wickham and Garrett Grolemund. It's designed to take you from knowing nothing about R or the tidyverse to having all the basic tools of data science at your fingertips.
 
 This [tutorial](https://learnr-examples.shinyapps.io/ex-setup-r/#section-welcome) will help you set up your computer to use R. It is for you if you need to:
 

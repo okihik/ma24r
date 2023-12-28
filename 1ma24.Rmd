@@ -44,6 +44,11 @@ data.frame(obs_days    = nrow(df),
            closed_days = sum(!df$is_closed))
 df %>% 
   freq_table(is_closed)
+
+df %>% 
+  select(c(date, day, is_closed))%>%
+  subset(is_closed == TRUE)
+  
 ```
 
 
@@ -58,6 +63,14 @@ data.frame(food_loss_waste   = c(summary(df$food_loss_kg + df$food_waste_kg)),
 df %>% 
   select(c(food_loss_kg,food_waste_kg,liquid_waste_kg,solid_waste_kg)) %>% 
   get_summary_stats()
+
+library(summarytools)
+df %>%
+  select(c(food_loss_kg,food_waste_kg,
+           liquid_waste_kg,solid_waste_kg)) %>% 
+  descr(order = "preserve",
+        stats = c('mean', 'sd', 'min', 'q1', 'med', 'q3', 'max'),
+        round.digits = 6)
 
 # basic summary: dependents excluding closed days ------------------------------
 data.frame(food_loss_waste   = c(summary(df$food_loss_kg[!df$is_closed] 
@@ -89,6 +102,39 @@ stargazer(subset(df[4:7], df$is_closed == FALSE),  flip=TRUE,
 
 
 ## Histograms
+### Normal histogram
+```{r}
+# Create a data frame of numeric features & label
+dep_features <- df %>% 
+  select(c(is_closed, food_loss_kg, food_waste_kg, 
+           solid_waste_kg, liquid_waste_kg))
+
+# Pivot data to a long format
+dep_features <- dep_features %>% 
+  pivot_longer(!is_closed, names_to = "features", 
+               values_to = "values") %>%
+  group_by(features) %>% 
+  mutate(Mean = mean(values),
+         Median = median(values))
+
+
+# Plot a histogram for each feature
+dep_features %>%
+  ggplot() +
+  geom_histogram(aes(x = values, fill = features), 
+                 bins = 100, alpha = 0.7, show.legend = F) +
+  facet_wrap(~ features, scales = 'free')+
+  paletteer::scale_fill_paletteer_d("ggthemes::excel_Parallax") +
+  # Add lines for mean and median
+  geom_vline(aes(xintercept = Mean, color = "Mean"), 
+             linetype = "dashed", linewidth = 1 ) +
+  geom_vline(aes(xintercept = Median, color = "Median"), 
+             linetype = "dashed", linewidth = 1 ) +
+  scale_color_manual(name = "", 
+                     values = c(Mean = "red", Median = "yellow")) 
+```
+
+### Histogram with density
 ```{r histograms}
 # binwidth = bw
 # bw <- 2 * IQR(df$food_loss_kg) / length(df$food_loss_kg)^(1/3)
