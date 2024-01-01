@@ -183,7 +183,119 @@ hist_liquid_waste
 grid.arrange(hist_loss_waste,hist_loss,
              hist_food_waste,hist_solid_waste,hist_liquid_waste)
 ```
+### Q-Q plot
+```{r QQ plot dep vars.}
+# Food loss ------------
+ggplot(subset(df, is_closed %in% FALSE),
+       aes(sample=food_loss_kg)) +
+  stat_qq() + stat_qq_line() +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Food Loss in kg")
 
+# Food waste ------------
+ggplot(subset(df, is_closed %in% FALSE),
+       aes(sample=food_waste_kg)) +
+  stat_qq() + stat_qq_line() +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Food Waste in kg")
+
+# Solid Food waste ------------
+ggplot(subset(df, is_closed %in% FALSE),
+       aes(sample=solid_waste_kg)) +
+  stat_qq() + stat_qq_line() +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Solid Food Waste in kg")
+
+# Liquid Food waste ------------
+ggplot(subset(df, is_closed %in% FALSE),
+       aes(sample=liquid_waste_kg)) +
+  stat_qq() + stat_qq_line() +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Liquid Food Waste in kg")
+```
+
+### shapiro test
+```{r}
+# Food waste ------------
+df %>% 
+  filter(is_closed == FALSE) %>%
+  shapiro_test(food_waste_kg, solid_waste_kg, liquid_waste_kg)
+```
+From the output, all the p-value is far less than 0.05; so implying that the distribution of the data are significantly different from normal distribution. In other words, we can not assume the normality.
+
+### Histogram per capita
+```{r histograms_customer}
+# Histogram of food waste -------------------------------------------
+hist_food_waste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x = food_waste_kg/customers)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30,colour = 1, fill = "white") +
+  geom_density(linewidth = 1.5, colour = 4, fill = 4, alpha = 0.15) +
+  labs(title = "Food Waste - Histogram")
+hist_food_waste
+
+# Histogram of solid waste --------------------------------------------
+hist_solid_waste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE),
+         aes(x = solid_waste_kg/customers)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30,colour = 1, fill = "white") +
+  geom_density(linewidth = 1.5, colour = 4, fill = 4, alpha = 0.15) +
+  labs(title = "Solid Food Waste - Histogram")
+hist_solid_waste
+
+# Histogram of liquid waste ----------------------------------------
+hist_liquid_waste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x = liquid_waste_kg/customers)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30,colour = 1, fill = "white") +
+  geom_density(linewidth = 1.5, colour = 4, fill = 4, alpha = 0.15) +
+  labs(title = "Liquid Food Waste - Histogram")
+hist_liquid_waste
+
+grid.arrange(hist_loss_waste,hist_loss,
+             hist_food_waste,hist_solid_waste,hist_liquid_waste)
+```
+
+
+
+### Q-Q plot per capita
+```{r QQ plot dep vars.per customer}
+library(ggpubr)
+# Food waste ------------
+ggqqplot(subset(df$food_waste_kg/df$customers, 
+                df$is_closed %in% FALSE)) +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Food Waste per Capita in kg")
+
+# Solid Food waste ------------
+ggqqplot(subset(df$solid_waste_kg/df$customers, 
+                df$is_closed %in% FALSE)) +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Solid Food Waste per Capita in kg")
+
+# Liquid Food waste ------------
+ggqqplot(subset(df$liquid_waste_kg/df$customers, 
+                df$is_closed %in% FALSE)) +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Liquid Food Waste per Capita in kg")
+```
+
+### shapiro test for per capita
+```{r}
+# Food waste ------------
+df %>% 
+  filter(is_closed == FALSE) %>%
+  mutate(food_waste_p_kg   = food_waste_kg/customers,
+         solid_waste_p_kg  = solid_waste_kg/customers,
+         liquid_waste_p_kg = liquid_waste_kg/customers) %>%
+  shapiro_test(food_waste_p_kg, solid_waste_p_kg, liquid_waste_p_kg)
+```
+
+From the output, the p-value of solid food waste per customer is far less that the significant level of 0.05; but the others are not. So it imply that the distribution of the data for solid food waste per customer is significantly different from normal distribution. 
+In other words, we can assume the normality for food waste and liquid food waste per customer but not for solid food waste.
 
 ## Time Series Plots
 ### Daily Time Series
@@ -614,34 +726,6 @@ raw.spec_lfw<- list(spec.pgram(df$liquid_waste_kg, spans = 2))
 roughly 6 (days) period for food waste,
 but food loss is approx. 3 days or 20 days cycle.
 
-
-
-### Q-Q plot
-```{r QQ plot dep vars.}
-# Food loss ------------
-ggplot(df, aes(sample=food_loss_kg)) +
-  stat_qq() + stat_qq_line() +
-  xlab("theoretical") + ylab("sample") +
-  ggtitle("QQ plot of Food Loss in kg")
-
-# Food waste ------------
-ggplot(df, aes(sample=food_waste_kg)) +
-  stat_qq() + stat_qq_line() +
-  xlab("theoretical") + ylab("sample") +
-  ggtitle("QQ plot of Food Waste in kg")
-
-# Solid Food waste ------------
-ggplot(df, aes(sample=solid_waste_kg)) +
-  stat_qq() + stat_qq_line() +
-  xlab("theoretical") + ylab("sample") +
-  ggtitle("QQ plot of Solid Food Waste in kg")
-
-# Liquid Food waste ------------
-ggplot(df, aes(sample=liquid_waste_kg)) +
-  stat_qq() + stat_qq_line() +
-  xlab("theoretical") + ylab("sample") +
-  ggtitle("QQ plot of Liquid Food Waste in kg")
-```
 
 
 ## Analysis
