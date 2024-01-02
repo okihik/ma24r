@@ -24,7 +24,7 @@ library(bayesforecast)
 ```{r data import, echo=FALSE,message = FALSE, warning=FALSE}
 rm(df)
 dataPass = "/Users/am/Library/CloudStorage/OneDrive-UNBC/00MAthesis/ma24r/ma24data"
-df <- read.csv(dataPass)
+df <- read_csv(dataPass)
 rm(dataPass)
 ```
 
@@ -92,12 +92,12 @@ df %>%
 # 3. standard deviations
 # 4. Min values
 # 4. Max values
-stargazer(subset(df[4:7], df$is_closed == FALSE),  flip=TRUE,
-          type = "text",digits=2, out="deps1.txt")
-
-# Excluding the restaurant closed ---------------
-stargazer(subset(df[4:7], df$is_closed == FALSE),  flip=TRUE,
-          type = "text",digits=2, out="deps2.txt")
+# stargazer(subset(df[4:7], df$is_closed == FALSE),  flip=TRUE,
+#           type = "text",digits=2, out="deps1.txt")
+# 
+# # Excluding the restaurant closed ---------------
+# stargazer(subset(df[4:7], df$is_closed == FALSE),  flip=TRUE,
+#           type = "text",digits=2, out="deps2.txt")
 ```
 
 
@@ -268,19 +268,19 @@ library(ggpubr)
 ggqqplot(subset(df$food_waste_kg/df$customers, 
                 df$is_closed %in% FALSE)) +
   xlab("theoretical") + ylab("sample") +
-  ggtitle("QQ plot of Food Waste per Capita in kg")
+  ggtitle("QQ plot of Food Waste per Customer in kg")
 
 # Solid Food waste ------------
 ggqqplot(subset(df$solid_waste_kg/df$customers, 
                 df$is_closed %in% FALSE)) +
   xlab("theoretical") + ylab("sample") +
-  ggtitle("QQ plot of Solid Food Waste per Capita in kg")
+  ggtitle("QQ plot of Solid Food Waste per Customer in kg")
 
 # Liquid Food waste ------------
 ggqqplot(subset(df$liquid_waste_kg/df$customers, 
                 df$is_closed %in% FALSE)) +
   xlab("theoretical") + ylab("sample") +
-  ggtitle("QQ plot of Liquid Food Waste per Capita in kg")
+  ggtitle("QQ plot of Liquid Food Waste per Customer in kg")
 ```
 
 ### shapiro test for per capita
@@ -288,6 +288,101 @@ ggqqplot(subset(df$liquid_waste_kg/df$customers,
 # Food waste ------------
 df %>% 
   filter(is_closed == FALSE) %>%
+  mutate(food_waste_p_kg   = food_waste_kg/customers,
+         solid_waste_p_kg  = solid_waste_kg/customers,
+         liquid_waste_p_kg = liquid_waste_kg/customers) %>%
+  shapiro_test(food_waste_p_kg, solid_waste_p_kg, liquid_waste_p_kg)
+```
+
+From the output, the p-value of solid food waste per customer is far less that the significant level of 0.05; but the others are not. So it imply that the distribution of the data for solid food waste per customer is significantly different from normal distribution. 
+In other words, we can assume the normality for food waste and liquid food waste per customer but not for solid food waste.
+
+
+### Histogram per customer w/o outlier
+### Histogram per capita w/o outlier
+```{r histograms_customer w/o outlier}
+# find outliers ----
+# food waste -----
+which(df$food_waste_kg/df$customers > 0.2)  # => 46
+which(df$solid_waste_kg/df$customers > 0.1) # => 46
+df[46,]$date
+# outlier is 46; 2022-11-08
+
+# Histogram of food waste -------------------------------------------
+hist_food_waste <- 
+  df %>% 
+  filter(is_closed == FALSE) %>%
+  filter(!row_number() %in% c(45)) %>%
+  ggplot(aes(x = food_waste_kg/customers)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30,colour = 1, fill = "white") +
+  geom_density(linewidth = 1.5, colour = 4, fill = 4, alpha = 0.15) +
+  labs(title = "Food Waste - Histogram")
+hist_food_waste
+
+# Histogram of solid waste --------------------------------------------
+hist_solid_waste <- 
+  df %>% 
+  filter(is_closed == FALSE) %>%
+  filter(!row_number() %in% c(45)) %>%
+  ggplot(aes(x = solid_waste_kg/customers)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30,colour = 1, fill = "white") +
+  geom_density(linewidth = 1.5, colour = 4, fill = 4, alpha = 0.15) +
+  labs(title = "Solid Food Waste - Histogram")
+hist_solid_waste
+
+# Histogram of liquid waste ----------------------------------------
+hist_liquid_waste <- 
+  df %>% 
+  filter(is_closed == FALSE) %>%
+  filter(!row_number() %in% c(45)) %>%
+  ggplot(aes(x = liquid_waste_kg/customers)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30,colour = 1, fill = "white") +
+  geom_density(linewidth = 1.5, colour = 4, fill = 4, alpha = 0.15) +
+  labs(title = "Liquid Food Waste - Histogram")
+hist_liquid_waste
+
+grid.arrange(hist_food_waste,hist_solid_waste,
+             hist_liquid_waste)
+```
+
+
+
+### Q-Q plot per capita w/o outlier
+```{r QQ plot dep vars.per customer w/o outlier}
+library(qqplotr)
+# Food waste ------------
+# df %>% 
+#   filter(is_closed == FALSE) %>%
+#   filter(!row_number() %in% c(45)) %>%
+#   ggplot(aes(sample = liquid_waste_kg/customers)) +
+#   stat_qq() + stat_qq_line() +
+ggqqplot(subset(df[-46,]$solid_waste_kg/df[-46,]$customers, 
+                df[-46,]$is_closed %in% FALSE)) +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Food Waste per Customer in kg")
+
+# Solid Food waste ------------
+ggqqplot(subset(df[-46,]$solid_waste_kg/df[-46,]$customers, 
+                df[-46,]$is_closed %in% FALSE)) +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Solid Food Waste per Customer in kg")
+
+# Liquid Food waste ------------
+ggqqplot(subset(df[-46,]$liquid_waste_kg/df[-46,]$customers, 
+                df[-46,]$is_closed %in% FALSE)) +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Liquid Food Waste per Customer in kg")
+```
+
+### shapiro test for per capita w/o outlier
+```{r}
+# Food waste ------------
+df %>% 
+  filter(is_closed == FALSE) %>%
+  filter(!row_number() == 45) %>%
   mutate(food_waste_p_kg   = food_waste_kg/customers,
          solid_waste_p_kg  = solid_waste_kg/customers,
          liquid_waste_p_kg = liquid_waste_kg/customers) %>%
@@ -314,7 +409,8 @@ df <- df %>%
 ```{r plot daily}
 # Daily Plot on food loss + food waste ---------------------------------
 daily_loss_waste <- 
-  ggplot(data = df, aes(x = as.Date(date), y = food_loss_kg + food_waste_kg)) +
+  ggplot(data = df, aes(x = as.Date(date), 
+                        y = food_loss_kg + food_waste_kg)) +
   geom_line(aes(group = 1), color="dark blue") +
   geom_point(aes(shape = is_closed)) +
   scale_shape_manual(values=c(16, 4)) +

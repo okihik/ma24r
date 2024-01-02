@@ -23,6 +23,7 @@ library(tidyverse)
 library(ggpubr)
 library(patchwork)
 library(rstatix)
+library(ggbiplot)
 ```
 
 ```{r import data,echo=FALSE, message = FALSE, warning=FALSE}
@@ -115,32 +116,87 @@ indept_corr %>%
   rplot(print_cor=TRUE) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
+
 ## Principal Component Analysis
-```{r}
-source("plotPCAresults.R",  encoding="utf-8")
-library(ggforce)
-library(embed)
-library(bestNormalize)
-library(recipes)
+```{r pca}
+# https://www.rpubs.com/twyunting/PCA_in_the_tidyverse_Framework
+# https://stackoverflow.com/questions/73786208/ggbiplot-how-to-change-the-colour-of-the-arrows-and-text-using-a-function-for
 
-df_bus <- df %>%
-  filter(.,is_closed == FALSE) %>%
-  select(c(customers, liquors, sales))
-df_wea <- df %>%
-  filter(.,is_closed == FALSE) %>%
-  select(c(temp_c,humi_p, prcp_mm))
+# PCA for business variables:
+# customers,fulls,halfs,takeouts,liquors,sales
+pca_bus <- df %>%
+  filter(is_closed == FALSE) %>%
+  select(c(customers,fulls,halfs,takeouts,liquors,sales)) %>%
+  prcomp()
+pca_bus
 
-bean_rec <-
-  recipe(class ~ ., data = df_bus) %>%
-  step_zv(all_numeric_predictors()) %>%
-  step_orderNorm(all_numeric_predictors()) %>% 
-  step_normalize(all_numeric_predictors())
+# Visualization ----
+# the first principal direction (PC1) space
+pca_bus %>%
+  tidy(matrix = "loadings") %>%
+  filter(PC == 1) %>%
+  ggplot(aes(value, column)) +
+  geom_col() +
+  theme_bw()
 
+# each pc space
+pca_bus %>%
+  tidy(matrix = "loadings") %>%
+  ggplot(aes(value, column)) +
+  geom_col() +
+  facet_wrap(~PC)
 
-df_bus %>%
-  step_pca(all_numeric_predictors(), num_comp = 4) %>%
-  plotPCAresults() + 
-  ggtitle("Principal Component Analysis")
+# Variance explained
+pca_bus %>%
+  tidy(matrix = "pcs") %>%
+  ggplot(aes(PC, percent)) +
+  geom_col() +
+  theme_bw() +
+  scale_x_continuous(breaks = 1:8) +
+  scale_y_continuous(
+    labels = scales::percent_format(),
+    expand = expansion(mult = c(0, 0.01))
+  )
+
+ggbiplot(pca_bus)
+
+# PCA for weather terms:
+# temperature, humidity, precipitation
+pca_weather <- df %>%
+  filter(is_closed == FALSE) %>%
+  select(c(temp_c,humi_p,prcp_mm)) %>%
+  prcomp()
+pca_weather
+
+# Visualization ----
+# the first principal direction (PC1) space
+pca_weather %>%
+  tidy(matrix = "loadings") %>%
+  filter(PC == 1) %>%
+  ggplot(aes(value, column)) +
+  geom_col() +
+  theme_bw()
+
+# each pc space
+pca_weather %>%
+  tidy(matrix = "loadings") %>%
+  ggplot(aes(value, column)) +
+  geom_col() +
+  facet_wrap(~PC)
+
+# Variance explained
+pca_weather %>%
+  tidy(matrix = "pcs") %>%
+  ggplot(aes(PC, percent)) +
+  geom_col() +
+  theme_bw() +
+  scale_x_continuous(breaks = 1:8) +
+  scale_y_continuous(
+    labels = scales::percent_format(),
+    expand = expansion(mult = c(0, 0.01))
+  )
+
+ggbiplot(pca_weather)
 ```
 
 
