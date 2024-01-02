@@ -19,13 +19,9 @@ rm(dataPass)
 
 ## Linear Regression Analysis
 ```{r}
-# Set up ----
-library(tidymodels)
-tidymodels_prefer()
+library(tidyverse,modelsummary,margins)
 
-lm_mod <- linear_reg() %>% 
-  set_mode("regression") %>% 
-  set_engine("lm")
+
 ```
 
 ## Principal Componet Analysis
@@ -152,27 +148,31 @@ check_model(aml_lfw)
 ## Discontinuity Regression in Time Series
 ### Scatter plot
 ```{r plot daily RD in Time}
+library(moderndive)
 # Daily Plot on food waste -----------------------------------------------
 daily_waste <- 
   ggplot(data = subset(df, is_closed == FALSE), 
          aes(x = as.Date(date), 
              y = food_waste_kg)) +
+  geom_parallel_slopes(aes(group = container)) +
   # geom_line(color="black") +
-  stat_smooth(aes(group = container), method = "lm", 
-              formula = y ~ x,
-              color = "green", fill = "green") +
+  # stat_smooth(aes(group = container), method = "lm", 
+  #             formula = y ~ x,
+  #             color = "green", fill = "green") +
   geom_point(aes(shape = is_closed)) +
   scale_x_date(date_labels = "%b %d") +
   scale_shape_manual(values=c(16, 4))+
-  theme(legend.position = c(0.8,0.85)) +
+  theme(legend.position = "none") +
   xlab("Date") + ylab("Daily Food Waste (kg)") +
   ggtitle("Daily Food Waste Trend")
 daily_waste
 
 # Daily Plot on solid food waste -----------------------------------------
 daily_solid_waste <- 
-  ggplot(data = df, aes(x = as.Date(date), 
-                        y = solid_waste_kg/customers)) +
+  ggplot(data = subset(df, is_closed == FALSE),
+         aes(x = as.Date(date), 
+             y = solid_waste_kg/customers)) +
+  geom_parallel_slopes(aes(group = container)) +
   # geom_line(color="dark orange") +
   stat_smooth(aes(group = container), method = "lm",
               formula = y ~ x,
@@ -180,15 +180,17 @@ daily_solid_waste <-
   geom_point(aes(shape = is_closed)) +
   scale_x_date(date_labels = "%b %d") +
   scale_shape_manual(values=c(16, 4))+
-  theme(legend.position = c(0.8,0.85)) +
+  theme(legend.position = "none") +
   xlab("Date") + ylab("Daily Solid Food Waste (kg)") +
   ggtitle("Daily Solid Food Waste Trend")
 daily_solid_waste
 
 # Daily Plot on liquid food waste ----------------------------------------
 daily_liquid_waste <- 
-  ggplot(data = df, aes(x = as.Date(date), 
-                        y = liquid_waste_kg/customers)) +
+  ggplot(data = subset(df, is_closed == FALSE),
+         aes(x = as.Date(date), 
+             y = liquid_waste_kg/customers)) +
+  geom_parallel_slopes(aes(group = container)) +
   # geom_line(color="dark blue") +
   stat_smooth(aes(group = container), method = "lm", 
               formula = y ~ x,
@@ -196,7 +198,7 @@ daily_liquid_waste <-
   geom_point(aes(shape = is_closed)) +
   scale_x_date(date_labels = "%b %d") +
   scale_shape_manual(values=c(16, 4))+
-  theme(legend.position = c(0.8,0.85)) +
+  theme(legend.position = "none") +
   xlab("Date") + ylab("Daily Liquid ood Waste (kg)") +
   ggtitle("Daily Liquid Food Waste Trend")
 daily_liquid_waste
