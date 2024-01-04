@@ -40,14 +40,14 @@ isValidSheet(sheet.raw)
 
 ## Data Preprocess
 ### Convert Gross weight to Net weight of FLW
-```{r gross_to_net_weight}
+```{r gross_to_net_weight, warning=F}
 rm(sheet.net)
 sheet.net <- prepNetWeight(sheet.raw)
 sheets <- merge(sheet.raw, sheet.net, by = "date")
 ```
 
 ### Append day of the week as Dummy and Effect variable
-```{r day of the week}
+```{r day of the week, warning=F}
 # based day of the week must be either Tue, Wed, Thu, Fri, Sat, Sun.
 rm(sheet.week)
 sheet.week <- prepWeek(sheet.net, "Sun")
@@ -84,11 +84,13 @@ sheet.inputs <- prepInputs(sheet.raw,AdjMat,
 sheets <- merge(sheets, sheet.inputs, by = "date")
 ```
 
+
 ### Data combine
 ```{r rename data variables}
 df <- data.frame(
   date      = as.Date(sheets$date),        # date
   day       = as.character(sheets$day.x),  # day of the week
+  week_end  = sheet.week$wkend,
   is_closed = as.logical(sheets$isClosed), # the restaurant closed or not
   # food loss and waste vars
   food_loss_kg    = sheets$food_loss_kg,   #
@@ -134,7 +136,7 @@ df <- data.frame(
   FL_FL_bone_kg = sheets$foodLoss_input.10,
   FL_FL_veg_kg  = sheets$foodLoss_input.11,
   FL_FL_meat_kg = sheets$foodLoss_input.12,
-  FL_FP_kg     = sheets$foodLoss_input.13,
+  FL_FP_kg      = sheets$foodLoss_input.13,
   # 
   Broth_diff      = sheets$Broth_diff,
   Final_Prod_diff = sheets$Final_Prod_diff,

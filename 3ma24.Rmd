@@ -14,12 +14,21 @@ rm(df)
 dataPass = "/Users/am/Library/CloudStorage/OneDrive-UNBC/00MAthesis/ma24r/ma24data"
 df <- read_csv(dataPass)
 rm(dataPass)
+
+df <- df %>% mutate(
+  food_waste_p_kg = food_waste_kg/customers,
+  solid_waste_p_kg = solid_waste_kg/customers,
+  liquid_waste_p_kg = liquid_waste_kg/customers
+) %>% 
+  replace_na(list(food_waste_p_kg = 0,
+                  solid_waste_p_kg = 0,
+                  liquid_waste_p_kg = 0))
 ```
 
 
 ## Linear Regression Analysis
 ```{r}
-library(tidyverse,modelsummary,margins)
+# library(tidyverse,modelsummary,margins)
 
 
 ```
@@ -31,50 +40,45 @@ library(tidyverse,modelsummary,margins)
 
 
 ### Simple Additive Multiple Linear Model
-```{r}
+```{r multiple regression}
 # aML of food loss -------------------------------------------------------------
-aml_fl <- foodLossKg ~ tempC + humidityPerc + precipMM + 
+aml_fl <- food_loss_kg ~ temp_c + humi_p + prcp_mm + 
                        tueE + wedE + thuE + friE + satE +
-                       container + liquors + sales + halfOrders
-aml_fl <- lm(aml_fl, data = df, subset = (!df$isClosed))
+                       container + liquors + sales + halfs
+aml_fl <- lm(aml_fl, data = df, subset = (!df$is_closed))
 summary(aml_fl)
 
 # aML of food waste ------------------------------------------------------------
-aml_fw <- allWasteKg ~ tempC + humidityPerc + precipMM + 
+aml_fw <- food_waste_kg ~ temp_c + humi_p + prcp_mm + 
                        tueE + wedE + thuE + friE + satE +
-                       container + liquors + sales + halfOrders
-aml_fw <- lm(aml_fw, data = df, subset = (!df$isClosed))
+                       container + liquors + sales + halfs
+aml_fw <- lm(aml_fw, data = df, subset = (!df$is_closed))
 summary(aml_fw)
 
 # aML of solid food waste ------------------------------------------------------
-aml_sfw <- solidWasteKg ~ tempC + humidityPerc + precipMM + 
+aml_sfw <- solid_waste_kg ~ temp_c + humi_p + prcp_mm + 
                           tueE + wedE + thuE + friE + satE +
-                          container + liquors + sales + halfOrders
-aml_sfw <- lm(aml_sfw, data = df, subset = (!df$isClosed))
+                          container + liquors + sales + halfs
+aml_sfw <- lm(aml_sfw, data = df, subset = (!df$is_closed))
 summary(aml_sfw)
 
 # aML of liquid food waste -----------------------------------------------------
-aml_lfw <- liquidWasteKg ~ tempC + humidityPerc + precipMM + 
+aml_lfw <- liquid_waste_kg ~ temp_c + humi_p + prcp_mm + 
                           tueE + wedE + thuE + friE + satE +
-                          container + liquors + sales + halfOrders
-aml_lfw <- lm(aml_lfw, data = df, subset = (!df$isClosed))
+                          container + liquors + sales + halfs
+aml_lfw <- lm(aml_lfw, data = df, subset = (!df$is_closed))
 summary(aml_lfw)
 ```
 
-1. Linearity of the relationships between the dependent and independent variables
-2. Independence of the observations
-3. Normality of the residuals
-4. Homoscedasticity of the residuals
-5. No influential points (outliers)
-6. No multicollinearity
-
 ### Assumptions Check
 ```{r}
+library(tseries)
 # check the models with 1. assumptions -----------------------------------------
 
 
 ## check the models with 2. assumptions ----------------------------------------
 # check autocorrelation --------------------------------------------------------
+library(performance)
 check_autocorrelation(aml_fl)
 check_autocorrelation(aml_fw)
 check_autocorrelation(aml_sfw)
@@ -84,29 +88,29 @@ check_autocorrelation(aml_lfw)
 # Model: diff(y_t) = (1-r)*y_{t-1} + e_t
 # Null: r = 1 -> Stationary Process 
 # Alt: otherwise -> Not Stationary Process
-PP.test(df$foodLossKg)
-PP.test(df$allWasteKg)
-PP.test(df$solidWasteKg)
-PP.test(df$liquidWasteKg)
+PP.test(df$food_loss_kg)
+PP.test(df$food_waste_kg)
+PP.test(df$solid_waste_kg)
+PP.test(df$liquid_waste_kg)
 # -> pval = 0.01 => likely not unit root process
 
 # Augmented Dickey–Fuller Test -------------------------------------------------
 # Model: diff(y_t) = a + bt + r*y_{t-1} + c*diff(y_{t-1}) + ... + e_t
 # Null: r = 0 -> Stationary Process 
 # Alt:  r < 0 -> Not Stationary Process
-adf.test(df$foodLossKg)
-adf.test(df$allWasteKg)
-adf.test(df$solidWasteKg)
-adf.test(df$liquidWasteKg)
+adf.test(df$food_loss_kg)
+adf.test(df$food_waste_kg)
+adf.test(df$solid_waste_kg)
+adf.test(df$liquid_waste_kg)
 
 # Augmented Dickey–Fuller Test -------------------------------------------------
 # Model: diff(y_t) = a + bt + r*y_{t-1} + c*diff(y_{t-1}) + ... + e_t
 # Null: r = 0 -> Stationary Process 
 # Alt:  r > 0 -> Not Stationary Process
-adf.test(df$foodLossKg,    alternative = "explosive")
-adf.test(df$allWasteKg,    alternative = "explosive")
-adf.test(df$solidWasteKg,  alternative = "explosive")
-adf.test(df$liquidWasteKg, alternative = "explosive")
+adf.test(df$food_loss_kg,    alternative = "explosive")
+adf.test(df$food_waste_kg,    alternative = "explosive")
+adf.test(df$solid_waste_kg,  alternative = "explosive")
+adf.test(df$liquid_waste_kg, alternative = "explosive")
 
 # check (3) normality assumption -----------------------------------------------
 check_normality(aml_fl)
@@ -132,20 +136,100 @@ check_model(aml_sfw)
 check_model(aml_lfw)
 ```
 
-
-## Additive Multiple Linear Model per customers
+#### Per Customer
 ```{r}
+# aML of food waste ------------------------------------------------------------
+aml_p_fw <- food_waste_p_kg ~ temp_c + humi_p + prcp_mm + 
+                       tueE + wedE + thuE + friE + satE +
+                       container + liquors + sales + halfs
 
+summary(aml_p_fw <- lm(formula =  aml_p_fw, 
+                       data = df, subset = (!df$is_closed)))
+
+# aML of solid food waste ------------------------------------------------------
+aml_p_sfw <- solid_waste_p_kg ~ temp_c + humi_p + prcp_mm + 
+                          tueE + wedE + thuE + friE + satE +
+                          container + liquors + sales + halfs
+summary(aml_p_sfw <- lm(aml_p_sfw, 
+                        data = df, subset = (!df$is_closed)))
+
+# aML of liquid food waste -----------------------------------------------------
+aml_p_lfw <- liquid_waste_p_kg ~ temp_c + humi_p + prcp_mm + 
+                          tueE + wedE + thuE + friE + satE +
+                          container + liquors + sales + halfs
+
+summary(aml_p_lfw <- lm(aml_p_lfw, 
+                        data = df, subset = (!df$is_closed)))
 ```
 
+1. Linearity of the relationships between the dependent and independent variables
+2. Independence of the observations
+3. Normality of the residuals
+4. Homoscedasticity of the residuals
+5. No influential points (outliers)
+6. No multicollinearity
 
 ### Assumptions Check
 ```{r}
+# check the models with 1. assumptions -----------------------------------------
 
+
+## check the models with 2. assumptions ----------------------------------------
+# check autocorrelation --------------------------------------------------------
+library(performance)
+check_autocorrelation(aml_p_fw)
+check_autocorrelation(aml_p_sfw)
+check_autocorrelation(aml_p_lfw)
+
+# Phillips-Perron Test ---------------------------------------------------------
+# Model: diff(y_t) = (1-r)*y_{t-1} + e_t
+# Null: r = 1 -> Stationary Process 
+# Alt: otherwise -> Not Stationary Process
+PP.test(df$food_waste_p_kg)
+PP.test(df$solid_waste_p_kg)
+PP.test(df$liquid_waste_p_kg)
+# -> pval = 0.01 => likely not unit root process
+
+# Augmented Dickey–Fuller Test -------------------------------------------------
+# Model: diff(y_t) = a + bt + r*y_{t-1} + c*diff(y_{t-1}) + ... + e_t
+# Null: r = 0 -> Stationary Process 
+# Alt:  r < 0 -> Not Stationary Process
+adf.test(df$food_waste_p_kg)
+adf.test(df$solid_waste_p_kg)
+adf.test(df$liquid_waste_p_kg)
+
+# Augmented Dickey–Fuller Test -------------------------------------------------
+# Model: diff(y_t) = a + bt + r*y_{t-1} + c*diff(y_{t-1}) + ... + e_t
+# Null: r = 0 -> Stationary Process 
+# Alt:  r > 0 -> Not Stationary Process
+adf.test(df$food_waste_p_kg,    alternative = "explosive")
+adf.test(df$solid_waste_p_kg,  alternative = "explosive")
+adf.test(df$liquid_waste_p_kg, alternative = "explosive")
+
+# check (3) normality assumption -----------------------------------------------
+check_normality(aml_p_fw)
+check_normality(aml_p_sfw)
+check_normality(aml_p_lfw)
+
+# check (3) normality assumption -----------------------------------------------
+
+qqnorm(resid(aml_p_fw));qqline(resid(aml_p_fw))
+plot(fitted(aml_p_fw), resid(aml_p_fw)); abline(0, 0)
+plot(density(resid(aml_p_fw)))
+# check outliers (5) -----------------------------------------------------------
+check_outliers(aml_p_fw)
+check_outliers(aml_p_sfw)
+check_outliers(aml_p_lfw)
+
+# check the models with 3-5. assumptions ---------------------------------------
+check_model(aml_p_fw)
+check_model(aml_p_sfw)
+check_model(aml_p_lfw)
 ```
 
 
-## Discontinuity Regression in Time Series
+
+## RDiT
 ### Scatter plot
 ```{r plot daily RD in Time}
 library(moderndive)
@@ -154,11 +238,13 @@ daily_waste <-
   ggplot(data = subset(df, is_closed == FALSE), 
          aes(x = as.Date(date), 
              y = food_waste_kg)) +
-  geom_parallel_slopes(aes(group = container)) +
+  geom_parallel_slopes(aes(group = container), se = FALSE) +
   # geom_line(color="black") +
-  # stat_smooth(aes(group = container), method = "lm", 
-  #             formula = y ~ x,
-  #             color = "green", fill = "green") +
+  stat_smooth(aes(group = container), method = "lm",
+              formula = y ~ x,
+              color = "red", se = FALSE) +
+  stat_smooth(method = "lm", formula = y ~ x,
+              color = "black", linetype = "dashed", se = FALSE) +
   geom_point(aes(shape = is_closed)) +
   scale_x_date(date_labels = "%b %d") +
   scale_shape_manual(values=c(16, 4))+
@@ -171,15 +257,17 @@ daily_waste
 daily_solid_waste <- 
   ggplot(data = subset(df, is_closed == FALSE),
          aes(x = as.Date(date), 
-             y = solid_waste_kg/customers)) +
-  geom_parallel_slopes(aes(group = container)) +
+             y = solid_waste_kg)) +
+  geom_parallel_slopes(aes(group = container), se = FALSE) +
   # geom_line(color="dark orange") +
   stat_smooth(aes(group = container), method = "lm",
               formula = y ~ x,
-              color = "green", fill = "green") +
+              color = "red", se = FALSE) +
+    stat_smooth(method = "lm", formula = y ~ x,
+              color = "black", linetype = "dashed", se = FALSE) +
   geom_point(aes(shape = is_closed)) +
   scale_x_date(date_labels = "%b %d") +
-  scale_shape_manual(values=c(16, 4))+
+  scale_shape_manual(values=c(16, 4)) +
   theme(legend.position = "none") +
   xlab("Date") + ylab("Daily Solid Food Waste (kg)") +
   ggtitle("Daily Solid Food Waste Trend")
@@ -189,12 +277,15 @@ daily_solid_waste
 daily_liquid_waste <- 
   ggplot(data = subset(df, is_closed == FALSE),
          aes(x = as.Date(date), 
-             y = liquid_waste_kg/customers)) +
-  geom_parallel_slopes(aes(group = container)) +
+             y = liquid_waste_kg)) +
+  geom_parallel_slopes(aes(group = container), se = FALSE) +
   # geom_line(color="dark blue") +
   stat_smooth(aes(group = container), method = "lm", 
               formula = y ~ x,
-              color = "green", fill = "green") +
+              color = "red", se = FALSE) +
+  stat_smooth(method = "lm", 
+              formula = y ~ x,
+              color = "black", linetype = "dashed", se = FALSE) +
   geom_point(aes(shape = is_closed)) +
   scale_x_date(date_labels = "%b %d") +
   scale_shape_manual(values=c(16, 4))+
@@ -206,13 +297,95 @@ daily_liquid_waste
 # grid.arrange(daily_loss_waste,daily_loss, daily_waste,
 #              daily_solid_waste,daily_liquid_waste)
 ```
-```{r}
+### Scatter plot per Customer
+```{r plot daily RD in Time}
+library(moderndive)
+# Daily Plot on food waste -----------------------------------------------
+daily_waste_p <- 
+  ggplot(data = subset(df, is_closed == FALSE), 
+         aes(x = as.Date(date), 
+             y = food_waste_kg/customers)) +
+  geom_parallel_slopes(aes(group = container), se = FALSE) +
+  # geom_line(color="black") +
+  stat_smooth(method = "lm", formula = y ~ x,
+              color = "black", linetype = "dashed", se = FALSE) +
+  stat_smooth(aes(group = container), method = "lm",
+              formula = y ~ x,
+              color = "red", fill = "red", se = FALSE) +
+  geom_point(aes(shape = is_closed)) +
+  scale_x_date(date_labels = "%b %d") +
+  scale_shape_manual(values=c(16, 4))+
+  theme(legend.position = "none") +
+  xlab("Date") + ylab("Food Waste per Customer (kg)") +
+  ggtitle("Daily Food Waste per Customer")
+daily_waste_p
+
+# Daily Plot on solid food waste -----------------------------------------
+daily_solid_waste_p <- 
+  ggplot(data = subset(df, is_closed == FALSE),
+         aes(x = as.Date(date), 
+             y = solid_waste_kg/customers)) +
+  geom_parallel_slopes(aes(group = container), se = FALSE) +
+  # geom_line(color="dark orange") +
+  stat_smooth(method = "lm", formula = y ~ x,
+              color = "black", linetype = "dashed", se = FALSE) +
+  stat_smooth(aes(group = container), method = "lm",
+              formula = y ~ x,
+              color = "red", fill = "red", se = FALSE) +
+  geom_point(aes(shape = is_closed)) +
+  scale_x_date(date_labels = "%b %d") +
+  scale_shape_manual(values=c(16, 4)) +
+  theme(legend.position = "none") +
+  xlab("Date") + ylab("Solid Food Waste per Customer (kg)") +
+  ggtitle("Daily Solid Food Waste per Customer ")
+daily_solid_waste_p
+
+# Daily Plot on liquid food waste ----------------------------------------
+daily_liquid_waste_p <- 
+  ggplot(data = subset(df, is_closed == FALSE),
+         aes(x = as.Date(date), 
+             y = liquid_waste_kg/customers)) +
+  geom_parallel_slopes(aes(group = container), se = FALSE) +
+  # geom_line(color="dark blue") +
+  stat_smooth(method = "lm", formula = y ~ x,
+              color = "black", linetype = "dashed", se = FALSE) +
+  stat_smooth(aes(group = container), method = "lm", 
+              formula = y ~ x,
+              color = "red", se = FALSE) +
+  geom_point(aes(shape = is_closed)) +
+  scale_x_date(date_labels = "%b %d") +
+  scale_shape_manual(values=c(16, 4))+
+  theme(legend.position = "none") +
+  xlab("Date") + ylab("Liquid Food Waste per Customer (kg)") +
+  ggtitle("Daily Liquid Food Waste per Customer")
+daily_liquid_waste_p
+
+# grid.arrange(daily_loss_waste,daily_loss, daily_waste,
+#              daily_solid_waste,daily_liquid_waste)
+```
+
+### RDinT
+```{r rdint model}
 
 ```
 
 
 ### Assumption Check
-```{r}
+1. Linearity of the relationships between the dependent and independent variables
+2. Independence of the observations
+3. Normality of the residuals
+4. Homoscedasticity of the residuals
+5. No influential points (outliers)
+6. No multicollinearity
+
+Additional Assumptions
+1. plot residual
+2. robustness checks (overfitting check)
+3. X placebo tests
+4. demonstrate continutiy: plot a parallel rd estimated
+5. estimate donut rd
+6. autoregression in the output variable of interest
+```{r assumption RDiT}
 
 ```
 

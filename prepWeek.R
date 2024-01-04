@@ -17,6 +17,7 @@ prepWeek <- function(sheet = sheet, baseDay = baseDay){
   week_day <- as.factor(week_day)
   
   tue <- wed <- thur <- fri <- sat <- sun <- numeric(length = obsDays)
+  # wkend <- numeric(length = obsDays)
   
   # Convert baseDay
   # Dummy Coding: Assign 1; otherwise 0 ----------------------------------------
@@ -206,8 +207,14 @@ prepWeek <- function(sheet = sheet, baseDay = baseDay){
                     wedE = wed, thuE = thu, friE = fri, satE = sat, sunE=sun)
          }
   )
-  sheet.merged <- merge(sheet[,c(1,3)], wkDummyMat, by = "date")
-  sheet.merged <- merge(sheet.merged,wkEffectMat, by = "date")
   
+  wk_end <- data.frame(
+    date  = sheet$date[1:obsDays],
+    wkend = if_else(wday(sheet$date) %in% c(1,6,7), 1, 0)
+  )
+  
+  sheet.merged <- merge(sheet[,c(1,3)], wkDummyMat,  by = "date")
+  sheet.merged <- merge(sheet.merged,   wkEffectMat, by = "date")
+  sheet.merged <- merge(sheet.merged,   wk_end,      by = "date")
   return(sheet.merged)
 }

@@ -8,7 +8,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Library
+## Library ----
 ```{r packages, echo=FALSE,message = FALSE, warning=FALSE}
 library(ggplot2) # ggplot
 library(lubridate) # wday function
@@ -20,7 +20,7 @@ library(forecast)
 library(bayesforecast)
 ```
 
-## Import Data from file
+## Import Data from file ----
 ```{r data import, echo=FALSE,message = FALSE, warning=FALSE}
 rm(df)
 dataPass = "/Users/am/Library/CloudStorage/OneDrive-UNBC/00MAthesis/ma24r/ma24data"
@@ -35,7 +35,7 @@ str(df)
 names(df)
 ```
 
-## Univariable
+## Univariable ----
 ### Open days
 ```{r open days}
 # sample size: open and close days ---------------------------------------
@@ -101,7 +101,7 @@ df %>%
 ```
 
 
-## Histograms
+## Histograms ----
 ### Normal histogram
 ```{r}
 # Create a data frame of numeric features & label
@@ -134,7 +134,7 @@ dep_features %>%
                      values = c(Mean = "red", Median = "yellow")) 
 ```
 
-### Histogram with density
+#### Histogram with density
 ```{r histograms}
 # binwidth = bw
 # bw <- 2 * IQR(df$food_loss_kg) / length(df$food_loss_kg)^(1/3)
@@ -183,7 +183,7 @@ hist_liquid_waste
 grid.arrange(hist_loss_waste,hist_loss,
              hist_food_waste,hist_solid_waste,hist_liquid_waste)
 ```
-### Q-Q plot
+#### Q-Q plot
 ```{r QQ plot dep vars.}
 # Food loss ------------
 ggplot(subset(df, is_closed %in% FALSE),
@@ -214,7 +214,7 @@ ggplot(subset(df, is_closed %in% FALSE),
   ggtitle("QQ plot of Liquid Food Waste in kg")
 ```
 
-### shapiro test
+#### shapiro test
 ```{r}
 # Food waste ------------
 df %>% 
@@ -261,7 +261,7 @@ grid.arrange(hist_loss_waste,hist_loss,
 
 
 
-### Q-Q plot per capita
+#### Q-Q plot per capita
 ```{r QQ plot dep vars.per customer}
 library(ggpubr)
 # Food waste ------------
@@ -283,7 +283,7 @@ ggqqplot(subset(df$liquid_waste_kg/df$customers,
   ggtitle("QQ plot of Liquid Food Waste per Customer in kg")
 ```
 
-### shapiro test for per capita
+#### shapiro test for per capita
 ```{r}
 # Food waste ------------
 df %>% 
@@ -299,7 +299,6 @@ In other words, we can assume the normality for food waste and liquid food waste
 
 
 ### Histogram per customer w/o outlier
-### Histogram per capita w/o outlier
 ```{r histograms_customer w/o outlier}
 # find outliers ----
 # food waste -----
@@ -350,7 +349,7 @@ grid.arrange(hist_food_waste,hist_solid_waste,
 
 
 
-### Q-Q plot per capita w/o outlier
+#### Q-Q plot per capita w/o outlier
 ```{r QQ plot dep vars.per customer w/o outlier}
 library(qqplotr)
 # Food waste ------------
@@ -377,7 +376,7 @@ ggqqplot(subset(df[-46,]$liquid_waste_kg/df[-46,]$customers,
   ggtitle("QQ plot of Liquid Food Waste per Customer in kg")
 ```
 
-### shapiro test for per capita w/o outlier
+#### shapiro test for per capita w/o outlier
 ```{r}
 # Food waste ------------
 df %>% 
@@ -392,7 +391,53 @@ df %>%
 From the output, the p-value of solid food waste per customer is far less that the significant level of 0.05; but the others are not. So it imply that the distribution of the data for solid food waste per customer is significantly different from normal distribution. 
 In other words, we can assume the normality for food waste and liquid food waste per customer but not for solid food waste.
 
-## Time Series Plots
+### Histogram weekdays_ends
+```{r histograms_customer}
+# Histogram of food waste -------------------------------------------
+hist_food_waste_wk <- 
+  ggplot(data = subset(df %>% 
+                         mutate(wkend = if_else(wday(date) %in%
+                                                  c(1,6,7),T,F)), 
+                       is_closed %in% FALSE), 
+         aes(x = food_waste_kg,  colour = factor(wkend))) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30, fill = "white") +
+  geom_density(linewidth = 1.5, fill = 4, alpha = 0.15) +
+  labs(title = "Food Waste - Histogram")
+hist_food_waste_wk
+
+# Histogram of solid waste --------------------------------------------
+hist_solid_waste_wk <- 
+  ggplot(data = subset(df%>% 
+                         mutate(wkend = if_else(wday(date) %in%
+                                                  c(1,6,7),T,F)), 
+                       is_closed %in% FALSE),
+         aes(x = solid_waste_kg, colour = factor(wkend))) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30, fill = "white") +
+  geom_density(linewidth = 1.5, fill = 4, alpha = 0.15) +
+  labs(title = "Solid Food Waste - Histogram")
+hist_solid_waste_wk
+
+# Histogram of liquid waste ----------------------------------------
+hist_liquid_waste_wk <- 
+  ggplot(data = subset(df %>% 
+                         mutate(wkend = if_else(wday(date) %in%
+                                                  c(1,6,7),T,F)),
+                       is_closed %in% FALSE), 
+         aes(x = liquid_waste_kg, colour = factor(wkend))) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30, fill = "white") +
+  geom_density(linewidth = 1.5, fill = 4, alpha = 0.15) +
+  labs(title = "Liquid Food Waste - Histogram")
+hist_liquid_waste_wk
+
+grid.arrange(hist_food_waste_wk,
+             hist_solid_waste_wk,
+             hist_liquid_waste_wk)
+```
+
+
+## Time Series Plots ----
 ### Daily Time Series
 ```{r add month_day_name, echo=FALSE}
 # add month_name (September, ..., March) to data frame -------------------------
@@ -471,6 +516,24 @@ daily_liquid_waste
 
 grid.arrange(daily_loss_waste,daily_loss, daily_waste,
              daily_solid_waste,daily_liquid_waste)
+```
+
+### Decompsiotion
+```{r decomposition}
+library(fpp3, seasonal)
+df %>%
+  as_tsibble(index = date) %>%
+  select(food_waste_kg) %>%
+  fill_gaps(food_waste_kg = 0) %>%
+  model(STL(food_waste_kg)) |>
+  components() |>
+  autoplot()
+
+auto.arima(df[1:92,]$food_waste_kg, trace = TRUE)
+auto.arima(df[1:92,]$solid_waste_kg, trace = TRUE)
+auto.arima(df[1:92,]$liquid_waste_kg, trace = TRUE)
+
+
 ```
 
 
