@@ -8,7 +8,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Library ----
+## Library ---
 ```{r packages, echo=FALSE,message = FALSE, warning=FALSE}
 library(ggplot2) # ggplot
 library(lubridate) # wday function
@@ -20,7 +20,7 @@ library(forecast)
 library(bayesforecast)
 ```
 
-## Import Data from file ----
+## Import Data from file ---
 ```{r data import, echo=FALSE,message = FALSE, warning=FALSE}
 rm(df)
 dataPass = "/Users/am/Library/CloudStorage/OneDrive-UNBC/00MAthesis/ma24r/ma24data"
@@ -35,7 +35,7 @@ str(df)
 names(df)
 ```
 
-## Univariable ----
+## Univariable ---
 ### Open days
 ```{r open days}
 # sample size: open and close days ---------------------------------------
@@ -101,7 +101,7 @@ df %>%
 ```
 
 
-## Histograms ----
+## Histograms ---
 ### Normal histogram
 ```{r}
 # Create a data frame of numeric features & label
@@ -310,7 +310,7 @@ df[46,]$date
 # Histogram of food waste -------------------------------------------
 hist_food_waste <- 
   df %>% 
-  filter(is_closed == FALSE) %>%
+  filter(is_closed %in% FALSE) %>%
   filter(!row_number() %in% c(45)) %>%
   ggplot(aes(x = food_waste_kg/customers)) +
   geom_histogram(aes(y = after_stat(density)), 
@@ -322,7 +322,7 @@ hist_food_waste
 # Histogram of solid waste --------------------------------------------
 hist_solid_waste <- 
   df %>% 
-  filter(is_closed == FALSE) %>%
+  filter(is_closed %in% FALSE) %>%
   filter(!row_number() %in% c(45)) %>%
   ggplot(aes(x = solid_waste_kg/customers)) +
   geom_histogram(aes(y = after_stat(density)), 
@@ -334,7 +334,7 @@ hist_solid_waste
 # Histogram of liquid waste ----------------------------------------
 hist_liquid_waste <- 
   df %>% 
-  filter(is_closed == FALSE) %>%
+  filter(is_closed %in% FALSE) %>%
   filter(!row_number() %in% c(45)) %>%
   ggplot(aes(x = liquid_waste_kg/customers)) +
   geom_histogram(aes(y = after_stat(density)), 
@@ -358,7 +358,7 @@ library(qqplotr)
 #   filter(!row_number() %in% c(45)) %>%
 #   ggplot(aes(sample = liquid_waste_kg/customers)) +
 #   stat_qq() + stat_qq_line() +
-ggqqplot(subset(df[-46,]$solid_waste_kg/df[-46,]$customers, 
+ggqqplot(subset(df[-46,]$food_waste_kg/df[-46,]$customers, 
                 df[-46,]$is_closed %in% FALSE)) +
   xlab("theoretical") + ylab("sample") +
   ggtitle("QQ plot of Food Waste per Customer in kg")
@@ -380,7 +380,7 @@ ggqqplot(subset(df[-46,]$liquid_waste_kg/df[-46,]$customers,
 ```{r}
 # Food waste ------------
 df %>% 
-  filter(is_closed == FALSE) %>%
+  filter(is_closed %in% FALSE) %>%
   filter(!row_number() == 45) %>%
   mutate(food_waste_p_kg   = food_waste_kg/customers,
          solid_waste_p_kg  = solid_waste_kg/customers,
@@ -392,42 +392,37 @@ From the output, the p-value of solid food waste per customer is far less that t
 In other words, we can assume the normality for food waste and liquid food waste per customer but not for solid food waste.
 
 ### Histogram weekdays_ends
-```{r histograms_customer}
+```{r histograms_customer_weekend}
 # Histogram of food waste -------------------------------------------
 hist_food_waste_wk <- 
-  ggplot(data = subset(df %>% 
-                         mutate(wkend = if_else(wday(date) %in%
-                                                  c(1,6,7),T,F)), 
-                       is_closed %in% FALSE), 
-         aes(x = food_waste_kg,  colour = factor(wkend))) +
-  geom_histogram(aes(y = after_stat(density)), bins = 30, fill = "white") +
-  geom_density(linewidth = 1.5, fill = 4, alpha = 0.15) +
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x = food_waste_kg/customers, 
+             colour = factor(week_end))) +
+  geom_histogram(aes(y = after_stat(density) ), 
+                 fill = "white", bins = 30) +
+  geom_density(linewidth = 1, fill = 4, alpha = 0.15) +
   labs(title = "Food Waste - Histogram")
 hist_food_waste_wk
 
 # Histogram of solid waste --------------------------------------------
 hist_solid_waste_wk <- 
-  ggplot(data = subset(df%>% 
-                         mutate(wkend = if_else(wday(date) %in%
-                                                  c(1,6,7),T,F)), 
-                       is_closed %in% FALSE),
-         aes(x = solid_waste_kg, colour = factor(wkend))) +
+  ggplot(data = subset(df, is_closed %in% FALSE),
+         aes(x = solid_waste_kg/customers,
+             colour = factor(week_end))) +
   geom_histogram(aes(y = after_stat(density)), 
                  bins = 30, fill = "white") +
-  geom_density(linewidth = 1.5, fill = 4, alpha = 0.15) +
+  geom_density(linewidth = 1, fill = 4, alpha = 0.15) +
   labs(title = "Solid Food Waste - Histogram")
 hist_solid_waste_wk
 
 # Histogram of liquid waste ----------------------------------------
 hist_liquid_waste_wk <- 
-  ggplot(data = subset(df %>% 
-                         mutate(wkend = if_else(wday(date) %in%
-                                                  c(1,6,7),T,F)),
-                       is_closed %in% FALSE), 
-         aes(x = liquid_waste_kg, colour = factor(wkend))) +
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x = liquid_waste_kg/customers, 
+             colour = factor(week_end))) +
   geom_histogram(aes(y = after_stat(density)), 
                  bins = 30, fill = "white") +
-  geom_density(linewidth = 1.5, fill = 4, alpha = 0.15) +
+  geom_density(linewidth = 1, fill = 4, alpha = 0.15) +
   labs(title = "Liquid Food Waste - Histogram")
 hist_liquid_waste_wk
 
@@ -437,7 +432,7 @@ grid.arrange(hist_food_waste_wk,
 ```
 
 
-## Time Series Plots ----
+## Time Series Plots ---
 ### Daily Time Series
 ```{r add month_day_name, echo=FALSE}
 # add month_name (September, ..., March) to data frame -------------------------
@@ -529,9 +524,17 @@ df %>%
   components() |>
   autoplot()
 
+auto.arima(df$food_waste_kg, trace = TRUE)
+auto.arima(df$solid_waste_kg, trace = TRUE)
+auto.arima(df$liquid_waste_kg, trace = TRUE)
+
 auto.arima(df[1:92,]$food_waste_kg, trace = TRUE)
 auto.arima(df[1:92,]$solid_waste_kg, trace = TRUE)
 auto.arima(df[1:92,]$liquid_waste_kg, trace = TRUE)
+
+auto.arima(df[93:169,]$food_waste_kg, trace = TRUE)
+auto.arima(df[93:169,]$solid_waste_kg, trace = TRUE)
+auto.arima(df[93:169,]$liquid_waste_kg, trace = TRUE)
 
 
 ```
@@ -864,22 +867,22 @@ grid.arrange(acf_lfw,pacf_lfw)
 ```{r spec_all}
 # spectrum analysis for food loss ---------------------------------------------
 # plot.spectrum(dt$allWasteKg)
-raw.spec_fl <- list(spec.pgram(df$food_loss_kg, spans = 2))
+raw.spec_fl <- list(spec.pgram(df$food_loss_kg, spans = 10))
 1/raw.spec_fl[[1]]$freq[which.max(raw.spec_fl[[1]]$spec)]
 
 # spectrum analysis for food waste ---------------------------------------------
 # plot.spectrum(dt$allWasteKg)
-raw.spec_fw<- list(spec.pgram(df$food_waste_kg, spans = 2))
+raw.spec_fw<- list(spec.pgram(df$food_waste_kg, spans = 10))
 1/raw.spec_fw[[1]]$freq[which.max(raw.spec_fw[[1]]$spec)]
 
 # spectrum analysis for food waste ---------------------------------------------
 # plot.spectrum(dt$allWasteKg)
-raw.spec_sfw<- list(spec.pgram(df$solid_waste_kg, spans = 2))
+raw.spec_sfw<- list(spec.pgram(df$solid_waste_kg, spans = 10))
 1/raw.spec_sfw[[1]]$freq[which.max(raw.spec_sfw[[1]]$spec)]
 
 # spectrum analysis for food waste ---------------------------------------------
 # plot.spectrum(dt$allWasteKg)
-raw.spec_lfw<- list(spec.pgram(df$liquid_waste_kg, spans = 2))
+raw.spec_lfw<- list(spec.pgram(df$liquid_waste_kg, spans = 10))
 1/raw.spec_lfw[[1]]$freq[which.max(raw.spec_lfw[[1]]$spec)]
 ```
 roughly 6 (days) period for food waste,
@@ -887,7 +890,7 @@ but food loss is approx. 3 days or 20 days cycle.
 
 
 
-## Analysis
+### Erase states
 
 ```{r delete envir}
 rm(list = ls()[! ls() %in% c("df", "AdjMat")])

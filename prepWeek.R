@@ -210,7 +210,7 @@ prepWeek <- function(sheet = sheet, baseDay = baseDay){
   
   wk_end <- data.frame(
     date  = sheet$date[1:obsDays],
-    wkend = if_else(wday(sheet$date) %in% c(1,6,7), 1, 0)
+    wkend = if_else(wday(sheet$date) %in% c(1,6,7), 1, -1)
   )
   
   sheet.merged <- merge(sheet[,c(1,3)], wkDummyMat,  by = "date")
