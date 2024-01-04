@@ -368,9 +368,85 @@ daily_liquid_waste_p
 ```{r rdint model}
 df <- df %>%
   filter(is_closed %in% FALSE) %>%
-  mutate(time = seq(1:(nrow(df) - sum(df$is_closed))))
+  mutate(time = seq(1:(nrow(df) - sum(is_closed))))
+cutoff <-  df %>% filter(date %in% as.Date('2023-01-03')) %>%
+                    select(time) %>% as.numeric()
+df %>% mutate(time = time - cutoff)
 
+# simple food waste per customer -----
+rdt_fwp <- food_waste_p_kg ~ container * time 
 
+summary(rdt_fwp <- lm(formula =  rdt_fwp, 
+                       data = df, subset = (!df$is_closed)))
+# tidy(rdt_fwp)
+
+# simple solid food waste per customer -----
+rdt_sfwp <- solid_waste_p_kg ~ container * time 
+
+summary(rdt_sfwp <- lm(formula =  rdt_sfwp, 
+                       data = df, subset = (!df$is_closed)))
+# tidy(rdt_sfwp)
+# simple liquid food waste per customer -----
+rdt_lfwp <- liquid_waste_p_kg ~ container * time 
+
+summary(rdt_lfwp <- lm(formula =  rdt_lfwp, 
+                       data = df, subset = (!df$is_closed)))
+# tidy(rdt_lfwp)
+
+# multi food waste per customer -----
+rdt_fwp_multi <- food_waste_p_kg ~ container * time +
+                            temp_c + humi_p + prcp_mm + 
+                            liquors + sales + halfs
+
+summary(rdt_fwp_multi <- lm(formula =  rdt_fwp_multi, 
+                       data = df, subset = (!df$is_closed)))
+# tidy(rdt_fwp)
+
+# multi solid food waste per customer -----
+rdt_sfwp_multi <- solid_waste_p_kg ~ container * time +
+                            temp_c + humi_p + prcp_mm + 
+                            liquors + sales + halfs
+
+summary(rdt_sfwp_multi <- lm(formula =  rdt_sfwp_multi, 
+                       data = df, subset = (!df$is_closed)))
+# tidy(rdt_sfwp)
+# multi liquid food waste per customer -----
+rdt_lfwp_multi <- liquid_waste_p_kg ~ container * time +
+                            temp_c + humi_p + prcp_mm + 
+                            liquors + sales + halfs
+
+summary(rdt_lfwp_multi <- lm(formula =  rdt_lfwp_multi, 
+                       data = df, subset = (!df$is_closed)))
+# tidy(rdt_lfwp)
+
+# poly- food waste per customer -----
+rdt_fwp_poly <- food_waste_p_kg ~ container * time + 
+                             container * I(time^2) +
+                             temp_c + humi_p + prcp_mm + 
+                             liquors + sales + halfs
+
+summary(rdt_fwp_poly <- lm(formula =  rdt_fwp_poly, 
+                       data = df, subset = (!df$is_closed)))
+# tidy(rdt_fwp)
+
+# poly- solid food waste per customer -----
+rdt_sfwp_poly <- solid_waste_p_kg ~ container * time + 
+                               container * I(time^2) +
+                               temp_c + humi_p + prcp_mm + 
+                               liquors + sales + halfs
+
+summary(rdt_sfwp_poly <- lm(formula =  rdt_sfwp_poly, 
+                       data = df, subset = (!df$is_closed)))
+# tidy(rdt_sfwp)
+# poly- liquid food waste per customer -----
+rdt_lfwp_poly <- liquid_waste_p_kg ~ container * time + 
+                                container * I(time^2) +
+                                temp_c + humi_p + prcp_mm + 
+                                liquors + sales + halfs
+
+summary(rdt_lfwp_poly <- lm(formula =  rdt_lfwp_poly, 
+                       data = df, subset = (!df$is_closed)))
+# tidy(rdt_lfwp)
 ```
 
 
@@ -381,15 +457,46 @@ df <- df %>%
 4. Homoscedasticity of the residuals
 5. No influential points (outliers)
 6. No multicollinearity
+```{r assumption1 RDiT}
+# 1. Linearity of the relationships between the dependent and independent variables
+# 1.1 plot residual vs fitted values
+
+# 1.2 plot fitted values vs obs values
+
+
+# 2. Independence of the observations
+# 2 Autocorrelation
+
+# 3. Normality of the residuals
+# 3.1 histogram of resuduals
+
+# 3.2 QQ plot 
+
+# 3.3 shapiro-wilk normality test
+
+
+# 4. Homoscedasticity of the residuals
+# 4.1 plot residuals
+
+
+# 4.2 Breusch-Pagan test
+
+
+# 5. No influential points (outliers)
+
+
+# 6. No multicollinearity
+
+```
 
 Additional Assumptions
 1. plot residual
-2. robustness checks (overfitting check)
+2. X robustness checks (overfitting check)
 3. X placebo tests
 4. demonstrate continutiy: plot a parallel rd estimated
 5. estimate donut rd
 6. autoregression in the output variable of interest
-```{r assumption RDiT}
+```{r assumption2 RDiT}
 
 ```
 
