@@ -61,27 +61,42 @@ summary(aml_results)
 ```{r visualize coeffs}
 library(broom)
 library(ggplot2)
+source("get_stars.R")
 model_outputs <- tidy(aml_results)
 conf_ints <- aml_results %>% 
   tidy(., conf.int = TRUE) %>% 
+  mutate(
+    p.stars = get_stars(p.value, c(0.05, 0.01, 0.001)),
+    p.label = sprintf("%.*f", digits=2, estimate),
+    p.label = sprintf("%s %s", p.label, p.stars)
+  ) %>% 
   filter(!term %in% "(Intercept)")
+conf_ints$term <- factor(conf_ints$term, 
+                         levels = c("var.temp_c", "var.humi_p", "var.prcp_mm", 
+                                    "var.tueE", "var.wedE", 
+                                    "var.thuE", "var.friE", "var.satE",
+                                    "var.container", "var.liquors",
+                                    "var.sales", "var.halfs"))
+
 # Plot coeffs
 conf_ints %>% 
-  group_by(response) %>% 
-  ggplot(aes(x = reorder(term, estimate), y = estimate)) +
-  geom_errorbar(aes(ymin=conf.low, ymax=conf.high), 
-                width = 0.2, linewidth  = 1,
-                       position = "dodge", color="turquoise4") +
-  geom_hline(yintercept = 0, color = "red", size = 1) +
-  geom_point() + coord_flip()
-
-# sjPlot
-# library(sjPlot)
-# plot_model(aml_results,show.values = TRUE, value.offset = 0.3,
-#              axis.labels=c("temp_c", "humi_p", "prcp_mm", 
-#               "tueE", "wedE", "thuE", "friE", "satE",
-#               "container", "liquors", "sales", "halfs"))
-
+  ggplot(aes(x = term,
+             y = estimate,
+             fill = response),
+         position = position_dodge(width = 0.8)) +
+  geom_errorbar(aes(ymin=conf.low, ymax=conf.high, color = response), 
+                width = 0.2, linewidth  = 0.5,
+                position = position_dodge(width = 0.8)) +
+  geom_hline(yintercept = 0, color = "red", linewidth = 0.5) +
+  geom_point(aes(color = response), position = position_dodge(width = 0.8)) +
+  coord_flip() +
+  geom_text(aes_string(label = "p.label"), position = position_dodge(0.4),
+            vjust = 0.4 * -1.5,hjust = -.1,
+            show.legend = FALSE,
+            size = 2) +
+  theme(panel.grid.minor.y = element_line(color = 2,
+                                          linewidth = 0.25,
+                                          linetype = 1))
 ```
 
 
@@ -95,7 +110,7 @@ conf_ints %>%
 ## predictors: temp_c, humi_p, prcp_mm, 
 #              tueE, wedE, thuE, friE, satE,
 #              container, liquors, sales, halfs
-aml_p <- df %>% 
+aml_result_p <- df %>% 
   filter(!is_closed) %>% 
   mutate(var. = cbind(temp_c, humi_p, prcp_mm, 
                            tueE, wedE, thuE, friE, satE, 
@@ -103,12 +118,30 @@ aml_p <- df %>%
   mutate(outputs = cbind(food_waste_p_kg,
                          solid_waste_p_kg, liquid_waste_p_kg)) %>% 
   lm(outputs ~ var., data =.)
-summary(aml_p)
+summary(aml_result_p)
 ```
 
 ### Coefficients Visualization
 ```{r visualize coeffs per person}
+library(broom)
+library(ggplot2)
+model_outputs <- tidy(aml_result_p)
+conf_ints_p <- aml_result_p %>% 
+  tidy(., conf.int = TRUE) %>% 
+  filter(!term %in% "(Intercept)")
 
+# Plot coeffs
+conf_ints_p %>% 
+  ggplot(aes(x = term,
+             y = estimate,
+             fill = response),
+         position = position_dodge(width = 0.8)) +
+  geom_errorbar(aes(ymin=conf.low, ymax=conf.high, color = response), 
+                width = 0.2, linewidth  = 0.5,
+                position = position_dodge(width = 0.8)) +
+  geom_hline(yintercept = 0, color = "red", linewidth = 0.5) +
+  geom_point(aes(color = response), position = position_dodge(width = 0.8)) +
+  coord_flip()
 ```
 
 
