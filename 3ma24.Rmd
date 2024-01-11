@@ -797,7 +797,7 @@ summary(rdt_multi_lfw_p)
 6. Independence of the observations
 ```{r assumption_multiple_fw_person RDiT}
 library(performance)
-ass_multi_fw_p  <- plot(check_model(rdt_multi_fw_p, detrend=FALSE,panel = FALSE))
+ass_multi_fw_p  <- plot(check_model(rdt_multi_fw_p,  detrend=FALSE,panel = FALSE))
 ass_multi_sfw_p <- plot(check_model(rdt_multi_sfw_p, detrend=FALSE,panel = FALSE))
 ass_multi_lfw_p <- plot(check_model(rdt_multi_lfw_p, detrend=FALSE,panel = FALSE))
 
