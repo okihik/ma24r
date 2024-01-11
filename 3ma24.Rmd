@@ -89,11 +89,10 @@ conf_ints %>%
                 position = position_dodge(width = 0.8)) +
   geom_hline(yintercept = 0, color = "red", linewidth = 0.5) +
   geom_point(aes(color = response), position = position_dodge(width = 0.8)) +
+  # geom_text(aes_string(label = "p.label"), position = position_dodge(0.4),
+  #           vjust = 0.4 * -1.5, hjust = -.1,
+  #           show.legend = FALSE, size = 2) +
   coord_flip() +
-  geom_text(aes_string(label = "p.label"), position = position_dodge(0.4),
-            vjust = 0.4 * -1.5,hjust = -.1,
-            show.legend = FALSE,
-            size = 2) +
   theme(panel.grid.minor.y = element_line(color = 2,
                                           linewidth = 0.25,
                                           linetype = 1))
@@ -128,7 +127,19 @@ library(ggplot2)
 model_outputs <- tidy(aml_result_p)
 conf_ints_p <- aml_result_p %>% 
   tidy(., conf.int = TRUE) %>% 
+  mutate(
+    p.stars = get_stars(p.value, c(0.05, 0.01, 0.001)),
+    p.label = sprintf("%s", p.stars)
+    # p.label = sprintf("%.*f", digits=2, estimate),
+    # p.label = sprintf("%s %s", p.label, p.stars)
+  ) %>% 
   filter(!term %in% "(Intercept)")
+conf_ints_p$term <- factor(conf_ints_p$term, 
+                         levels = c("var.temp_c", "var.humi_p", "var.prcp_mm", 
+                                    "var.tueE", "var.wedE", 
+                                    "var.thuE", "var.friE", "var.satE",
+                                    "var.container", "var.liquors",
+                                    "var.sales", "var.halfs"))
 
 # Plot coeffs
 conf_ints_p %>% 
@@ -141,6 +152,9 @@ conf_ints_p %>%
                 position = position_dodge(width = 0.8)) +
   geom_hline(yintercept = 0, color = "red", linewidth = 0.5) +
   geom_point(aes(color = response), position = position_dodge(width = 0.8)) +
+  geom_text(aes_string(label = "p.label"), position = position_dodge(0.4),
+            vjust = 0.4 * -1.5, hjust = -.1,
+            show.legend = FALSE, size = 2) +
   coord_flip()
 ```
 
