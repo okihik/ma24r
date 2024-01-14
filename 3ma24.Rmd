@@ -326,6 +326,22 @@ df <- df %>%  mutate(time = time - cutoff)
 
 ###### Interaction
 ```{r rdint interaction}
+# Multi-output model
+## Target outcomes:
+# 1. food_waste_p_kg
+# 2. solid_waste_p_kg
+# 3. liquid_waste_p_kg
+## predictors: temp_c, humi_p, prcp_mm, 
+#              tueE, wedE, thuE, friE, satE,
+#              container, liquors, sales, halfs
+rdts_int_fw <- df %>% 
+  filter(!is_closed) %>% 
+  mutate(var. = cbind(container, time, container*time)) %>% 
+  mutate(outputs = cbind(food_waste_kg,
+                         solid_waste_kg, liquid_waste_kg)) %>% 
+  lm(outputs ~ var., data =.)
+summary(rdts_int_fw)
+
 # simple food waste -----
 # Formula:
 rdt_int_fw <- food_waste_kg ~ container * time 
@@ -362,9 +378,9 @@ summary(rdt_int_lfw)
 6. Independence of the observations
 ```{r assumption_interaction_fw RDiT}
 library(performance)
-ass_int_fw  <- plot(check_model(rdt_int_fw, detrend=FALSE, panel = FALSE))
-ass_int_sfw <- plot(check_model(rdt_int_sfw, detrend=FALSE,panel = FALSE))
-ass_int_lfw <- plot(check_model(rdt_int_lfw, detrend=FALSE,panel = FALSE))
+ass_int_fw  <- plot(check_model(rdt_int_fw,  detrend=FALSE, panel = FALSE))
+ass_int_sfw <- plot(check_model(rdt_int_sfw, detrend=FALSE, panel = FALSE))
+ass_int_lfw <- plot(check_model(rdt_int_lfw, detrend=FALSE, panel = FALSE))
 
 # 1. Linearity of the relationships between the dependent and independent variables
 # 1.1 plot residual vs fitted values
