@@ -1,9 +1,10 @@
 ---
 title: "Univariate - MA Data Analysis"
 author: "Akihiko Mori"
-output: html_document
+output: 
+  pdf_document
+  #html_document
 ---
-#'Metabolism of A Noodle Restaurant about Food Loss and Food Waste: Micro-Level Material Flow Model and Tobit Regression Analysis'
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -83,6 +84,11 @@ df %>%
   filter(is_closed == FALSE) %>%
   select(c(food_loss_kg,food_waste_kg,liquid_waste_kg,solid_waste_kg)) %>% 
   get_summary_stats()
+library(stargazer)
+df_fw <- as.data.frame(subset(df, is_closed==FALSE, 
+                 select = c("food_loss_kg","food_waste_kg",
+                            "liquid_waste_kg","solid_waste_kg")))
+stargazer(df_fw, type = "latex")
 ```
 
 ```{r stargazer dependents}

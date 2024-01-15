@@ -1,7 +1,9 @@
 ---
 title: "Bivariate - MA Data Analysis"
 author: "Akihiko Mori"
-output: html_document
+output: 
+  pdf_document
+  #html_document
 ---
 
 ```{r setup, include=FALSE}

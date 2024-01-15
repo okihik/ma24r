@@ -1,6 +1,8 @@
 ---
-title: "ma data analysis"
-output: html_document
+title: "Regression Models MA data analysis"
+output: 
+  pdf_document
+  #html_document
 ---
 
 ```{r setup, include=FALSE}
@@ -253,11 +255,14 @@ daily_waste_p <-
                        se = FALSE) +
   stat_smooth(aes(group = container, color = 'interaction'), 
               method = "lm", formula = y ~ x, se = FALSE) +
+  stat_smooth(aes(group = container, color = 'Poly'), 
+              method = "lm", formula = y ~ poly(x,2), se = FALSE) +
   scale_color_manual(name="Model Type",
-                     breaks = c('Overall','No interaction','interaction'),
+                     breaks = c('Overall','No interaction','interaction','Poly'),
                      values = c('Overall' ='black',
                                 'No interaction'='blue',
-                                'interaction'='red')) +
+                                'interaction'='red',
+                                'Poly' = 'dark green')) +
   theme(legend.position = "right") +
   scale_x_date(date_labels = "%b %d") +
   xlab("Date") + ylab("Food Waste per Customer (kg)") +
@@ -275,11 +280,14 @@ daily_solid_waste_p <-
                        se = FALSE) +
   stat_smooth(aes(group = container, color = 'interaction'), method = "lm",
               formula = y ~ x, se = FALSE) +
+  stat_smooth(aes(group = container, color = 'Poly'), 
+              method = "lm", formula = y ~ poly(x,2), se = FALSE) +
   scale_color_manual(name="Model Type",
-                     breaks = c('Overall','No interaction','interaction'),
+                     breaks = c('Overall','No interaction','interaction','Poly'),
                      values = c('Overall' ='black',
                                 'No interaction'='blue',
-                                'interaction'='red')) +
+                                'interaction'='red',
+                                'Poly' = 'dark green')) +
   theme(legend.position = "right") +
   scale_x_date(date_labels = "%b %d") +
   xlab("Date") + ylab("Solid Food Waste per Customer (kg)") +
@@ -297,11 +305,14 @@ daily_liquid_waste_p <-
                        se = FALSE) +
   stat_smooth(aes(group = container, color = 'interaction'), 
               method = "lm", formula = y ~ x, se = FALSE) +
+  stat_smooth(aes(group = container, color = 'Poly'), 
+              method = "lm", formula = y ~ poly(x,2), se = FALSE) +
   scale_color_manual(name="Model Type",
-                     breaks = c('Overall','No interaction','interaction'),
+                     breaks = c('Overall','No interaction','interaction','Poly'),
                      values = c('Overall' ='black',
                                 'No interaction'='blue',
-                                'interaction'='red')) +
+                                'interaction'='red',
+                                'Poly' = 'dark green')) +
   theme(legend.position = "right") +
   scale_x_date(date_labels = "%b %d") +
   xlab("Date") + ylab("Liquid Food Waste per Customer (kg)") +
@@ -885,10 +896,10 @@ check_autocorrelation(rdt_multi_lfw_p)
 ```
 
 ###### polynomial model
-```{r rdint per customer poly model}
+```{r rdint per customer quadatic model}
 # poly- food waste per customer -----
 rdt_poly_fw_p <- food_waste_p_kg ~ container * time + 
-                             container * I(time^2) +
+                             container * I(time^2) + 
                              temp_c + humi_p + prcp_mm + 
                              liquors + sales + halfs
 rdt_poly_fw_p <- df %>% 
@@ -995,6 +1006,100 @@ ass_poly_lfw_p[[5]] + labs(title = "VIF: Liquid Food Waste", subtitle = "")
 check_autocorrelation(rdt_poly_fw_p)
 check_autocorrelation(rdt_poly_sfw_p)
 check_autocorrelation(rdt_poly_lfw_p)
+```
+
+#### Cubic model
+```{r rdint per customer cubic model}
+# poly- food waste per customer -----
+rdt_poly3_fw_p <- food_waste_p_kg ~ container * time + 
+                             container * I(time^2) + container * I(time^3) + 
+                             temp_c + humi_p + prcp_mm + 
+                             liquors + sales + halfs
+rdt_poly3_fw_p <- df %>% 
+            filter(!is_closed) %>% 
+            lm(rdt_poly3_fw_p, data = .)
+summary(rdt_poly3_fw_p)
+
+# poly- solid food waste per customer -----
+rdt_poly3_sfw_p <- solid_waste_p_kg ~ container * time + 
+                               container * I(time^2) + container * I(time^3) + 
+                               temp_c + humi_p + prcp_mm + 
+                               liquors + sales + halfs
+rdt_poly3_sfw_p <- df %>% 
+            filter(!is_closed) %>% 
+            lm(rdt_poly3_sfw_p, data = .)
+summary(rdt_poly3_sfw_p)
+
+# poly- liquid food waste per customer -----
+rdt_poly3_lfw_p <- liquid_waste_p_kg ~ container * time + 
+                                container * I(time^2) + container * I(time^3) + 
+                                temp_c + humi_p + prcp_mm + 
+                                liquors + sales + halfs
+rdt_poly3_lfw_p <- df %>% 
+            filter(!is_closed) %>% 
+            lm(rdt_poly3_lfw_p, data = .)
+summary(rdt_poly3_lfw_p)
+```
+
+#### Quartic model
+```{r rdint per customer quartic model}
+# poly- food waste per customer -----
+rdt_poly4_fw_p <- food_waste_p_kg ~ container * time + 
+                             container * I(time^2) + container * I(time^3) +  container * I(time^4) +
+                             temp_c + humi_p + prcp_mm + 
+                             liquors + sales + halfs
+rdt_poly4_fw_p <- df %>% 
+            filter(!is_closed) %>% 
+            lm(rdt_poly4_fw_p, data = .)
+summary(rdt_poly4_fw_p)
+
+# poly- solid food waste per customer -----
+rdt_poly4_sfw_p <- solid_waste_p_kg ~ container * time + 
+                               container * I(time^2) + container * I(time^3) + container * I(time^4) +
+                               temp_c + humi_p + prcp_mm + 
+                               liquors + sales + halfs
+rdt_poly4_sfw_p <- df %>% 
+            filter(!is_closed) %>% 
+            lm(rdt_poly4_sfw_p, data = .)
+summary(rdt_poly4_sfw_p)
+
+# poly- liquid food waste per customer -----
+rdt_poly4_lfw_p <- liquid_waste_p_kg ~ container * time + 
+                                container * I(time^2) + container * I(time^3) + container * I(time^4) +
+                                temp_c + humi_p + prcp_mm + 
+                                liquors + sales + halfs
+rdt_poly4_lfw_p <- df %>% 
+            filter(!is_closed) %>% 
+            lm(rdt_poly4_lfw_p, data = .)
+summary(rdt_poly4_lfw_p)
+```
+
+#### Some model
+```{r sales model}
+# sales base model
+rdt_sales <- sales ~ container * time
+rdt_sales <- df %>% 
+            filter(!is_closed) %>% 
+            lm(rdt_sales, data = .)
+summary(rdt_sales)
+
+# multiple -----
+rdt_sales_mult <- sales ~ container * time +
+                              temp_c + humi_p + prcp_mm + 
+                               liquors + halfs
+rdt_sales_mult <- df %>% 
+            filter(!is_closed) %>% 
+            lm(rdt_sales_mult, data = .)
+summary(rdt_sales_mult)
+
+# poly- liquid food waste per customer -----
+rdt_sales <- sales ~ container * time +  container * I(time^2) + 
+                      temp_c + humi_p + prcp_mm + 
+                      liquors + halfs
+rdt_sales <- df %>% 
+            filter(!is_closed) %>% 
+            lm(rdt_sales, data = .)
+summary(rdt_sales)
 ```
 
 ### Local Regression
