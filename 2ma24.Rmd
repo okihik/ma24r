@@ -1,31 +1,39 @@
 ---
 title: "Bivariate - MA Data Analysis"
 author: "Akihiko Mori"
-output: 
-  pdf_document
-  #html_document
+output: rmdformats::readthedown
+  # pdf_document:
+  # html_document:
+  #   toc: true
+  #   theme: united
+  # code_folding: hide
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(fig.show="hold", out.width="50%") 
 ```
 
-## Library
+
 ```{r packages,echo=FALSE, message = FALSE, warning=FALSE}
-library(ggplot2) # ggplot
-library(lubridate) # wday function
-library(gridExtra) # grid.arrange function
-library(ggcorrplot) # cor_pmat
+## Library
+library(beans)
+library(corrr)
 library(forecast) # ggAcf
-library(tseries) # adf.test
+library(ggbiplot)
+library(ggcorrplot) # cor_pmat
+library(ggplot2) # ggplot
+library(ggpubr)
+library(gridExtra) # grid.arrange function
+library(lubridate) # wday function
+library(patchwork)
 library(performance) # check_model
 library(see) # check_model
 library(dplyr) # mutate
-library(tidyverse)
-library(ggpubr)
-library(patchwork)
 library(rstatix)
-library(ggbiplot)
+library(tidymodels)
+library(tidyverse)
+library(tseries) # adf.test
 ```
 
 ```{r import data,echo=FALSE, message = FALSE, warning=FALSE}
@@ -36,13 +44,14 @@ rm(dataPass)
 ```
 
 
-## Correlation b/w dependent vars.(food loss and food waste)
+# Correlation b/w dependent vars.(food loss and food waste)
 ```{r correlation_dep.vars}
 # independent variables ----
 deptData <- df %>%
-  filter(.,is_closed == FALSE) %>%
-  select(c(food_loss_kg,food_waste_kg,
-           liquid_waste_kg,solid_waste_kg))
+  filter(is_closed %in% FALSE) %>%
+  rstatix::select(c(food_waste_kg,liquid_waste_kg,solid_waste_kg))
+  # select(c(food_loss_kg,food_waste_kg,
+  #          liquid_waste_kg,solid_waste_kg))
 
 # correlation between independent variables ------------------------------------
 deptData %>% cor_mat()
@@ -57,14 +66,13 @@ deptData %>%
   cor_plot(label = TRUE) 
 ```
 
-
-## Correlation b/w independent vars.
-
+\newpage
+# Correlation b/w independent vars.
 ```{r}
 # independent variables ----
 indeptData <- df %>%
   filter(.,is_closed == FALSE) %>%
-  select(c(temp_c,humi_p, prcp_mm,
+  rstatix::select(c(temp_c,humi_p, prcp_mm,
            fulls, halfs, takeouts,
            customers, liquors, sales))
 
@@ -81,13 +89,13 @@ indeptData %>%
   cor_plot(label = TRUE)
 ```
 
+\newpage
 ## Correlation b/w independent vars.
-
 ```{r}
 # independent variables ----
 indeptData <- df %>%
   filter(.,is_closed == FALSE) %>%
-  select(c(temp_c,humi_p, prcp_mm,
+  rstatix::select(c(temp_c,humi_p, prcp_mm,
            customers, liquors, sales))
 
 # correlation between independent variables ------------------------------------
@@ -102,11 +110,7 @@ indeptData %>%
   pull_lower_triangle() %>%
   cor_plot(label = TRUE)
 
-library(tidymodels)
 tidymodels_prefer()
-library(beans)
-library(corrr)
-
 indept_corr <- indeptData %>%
   # select(-class) %>%      # drop non-numeric cols
   correlate() %>%         # generate a correlation matrix in data frame format
@@ -119,7 +123,8 @@ indept_corr %>%
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
 
-## Principal Component Analysis
+\newpage
+# Principal Component Analysis
 ```{r pca}
 # https://www.rpubs.com/twyunting/PCA_in_the_tidyverse_Framework
 # https://stackoverflow.com/questions/73786208/ggbiplot-how-to-change-the-colour-of-the-arrows-and-text-using-a-function-for
@@ -128,7 +133,7 @@ indept_corr %>%
 # customers,fulls,halfs,takeouts,liquors,sales
 pca_bus <- df %>%
   filter(is_closed == FALSE) %>%
-  select(c(customers,fulls,halfs,takeouts,liquors,sales)) %>%
+  rstatix::select(c(customers,fulls,halfs,takeouts,liquors,sales)) %>%
   prcomp()
 pca_bus
 
@@ -202,8 +207,8 @@ ggbiplot(pca_weather)
 ```
 
 
-## Scatter Plot
-### FW with temp
+# Scatter Plot
+## FW with temp
 ```{r waste_temp}
 # food waste and temperature ---------------------
 scatter_waste_temp <-
@@ -334,7 +339,7 @@ rm("dens_waste","dens_temp","scatter_waste_temp")
 
 ```
 
-### FW with humidity
+## FW with humidity
 ```{r waste_humidity}
 # food waste and humidity ---------------------
 scatter_waste_humi <-
@@ -460,11 +465,11 @@ scatter_dens_liquied_waste_humi <-
 
 scatter_dens_liquied_waste_humi
 
-rm("dens_waste","dens_humi","scatter_waste_temp")
+rm("dens_waste","dens_humi","scatter_waste_humi")
 
 ```
 
-### FW with precipitation
+## FW with precipitation
 ```{r density_scatter_waste_precip}
 # food waste and humidity ------------------------
 scatter_waste_precip <-
@@ -593,7 +598,7 @@ rm("dens_waste","dens_precip","scatter_waste_precip")
 ```
 
 
-### FW with customers
+## FW with customers
 ```{r}
 # food waste and customer ------------------------
 scatter_waste_customer <-
@@ -726,7 +731,7 @@ rm("dens_waste","dens_customer","scatter_waste_customer")
 ```
 
 
-### FW with sales
+## FW with sales
 ```{r}
 # food waste and sales ------------------------
 scatter_waste_sales <-
@@ -859,7 +864,7 @@ rm("dens_waste","dens_sales","scatter_waste_sales")
 
 
 
-### FW with liquor
+## FW with liquor
 ```{r}
 # food waste and liquor ------------------------
 scatter_waste_liquor <-
@@ -993,9 +998,7 @@ scatter_liquid_liquor
 rm("dens_waste","dens_liquor","scatter_waste_liquor")
 ```
 
-## Correlogram
-
-
+# Correlogram
 ## Cross-Correlation
 ```{r}
 ccf_fl_all <- 

@@ -1,19 +1,31 @@
 ---
 title: "Regression Models MA data analysis"
 output: 
-  pdf_document
-  #html_document
+  rmdformats::readthedown:
+  # pdf_document:
+  # html_document:
+  #   toc: true
+  #   theme: united
+  # code_folding: hide
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(fig.show="hold", out.width="50%") 
 ```
 
-## Data Preprocess
+
 ```{r data import, warning=FALSE, message=FALSE, echo=FALSE}
+## Data Preprocess
 library(readr)
 library(dplyr)
 library(tidyr)
+library(purrr)
+library(tidyverse)
+library(broom)
+library(moderndive)
+library(ggplot2)
+# data import
 rm(df)
 dataPass = "/Users/am/Library/CloudStorage/OneDrive-UNBC/00MAthesis/ma24r/ma24data"
 df <- read_csv(dataPass)
@@ -32,8 +44,8 @@ df <- df %>% mutate(
 ```
 
 
-### Additive Multiple Linear Model
-#### Food loss and food waste
+## Additive Multiple Linear Model
+## solid and liquid food waste
 ```{r simple multiple regression}
 library(modeldata)
 library(purrr)
@@ -53,13 +65,14 @@ aml_results <- df %>%
   mutate(var. = cbind(temp_c, humi_p, prcp_mm,
                       tueE, wedE, thuE, friE, satE, 
                       container, liquors, sales, halfs)) %>% 
-  mutate(outputs = cbind(food_loss_kg, food_waste_kg,
-                         solid_waste_kg, liquid_waste_kg)) %>% 
+  mutate(outputs = cbind(food_waste_kg, solid_waste_kg,liquid_waste_kg)) %>% 
+  # mutate(outputs = cbind(food_loss_kg, food_waste_kg,
+  #                        solid_waste_kg, liquid_waste_kg)) %>% 
   lm(outputs ~ var., data =.)
 summary(aml_results)
 ```
 
-### Coefficients Visualization
+## Coefficients Visualization
 ```{r visualize coeffs}
 library(broom)
 library(ggplot2)
@@ -101,7 +114,7 @@ conf_ints %>%
 ```
 
 
-#### Per Customer
+## Per Customer
 ```{r food waste per customer}
 ## Multi-output linear regression -----
 ## Target outcomes:
@@ -122,7 +135,7 @@ aml_result_p <- df %>%
 summary(aml_result_p)
 ```
 
-### Coefficients Visualization
+## Coefficients Visualization
 ```{r visualize coeffs per person}
 library(broom)
 library(ggplot2)
@@ -163,10 +176,10 @@ conf_ints_p %>%
 
 
 ## RDiT
-### Scatter plot
+## Day of the week plot
+
+## Scatter plot
 ```{r plot daily RD in Time}
-library(moderndive)
-library(ggplot2)
 ### Color Legend ----
 # blue line is no interaction -> parallel effect
 # red line is with interaction -> not parallel
@@ -241,7 +254,7 @@ daily_liquid_waste
 # grid.arrange(daily_waste,
 #              daily_solid_waste,daily_liquid_waste)
 ```
-### Scatter plot per Customer
+## Scatter plot per Customer
 ```{r plot per customer RD in Time}
 library(moderndive)
 # Daily Plot on food waste -----------------------------------------------
@@ -323,7 +336,7 @@ daily_liquid_waste_p
 #              daily_solid_waste,daily_liquid_waste)
 ```
 
-### RDinT Analysis
+# RDinT Analysis
 ```{r rdint data create}
 library(dplyr)
 df <- df %>%
@@ -335,7 +348,7 @@ cutoff <- df %>% filter(date %in% as.Date('2023-01-03')) %>% dplyr::select(time)
 df <- df %>%  mutate(time = time - cutoff)
 ```
 
-###### Interaction
+## Interaction
 ```{r rdint interaction}
 # Multi-output model
 ## Target outcomes:
@@ -380,7 +393,7 @@ rdt_int_lfw <- df %>%
 summary(rdt_int_lfw)
 ```
 
-#### Ass-Interaction
+## Ass-Interaction
 1. Linearity of the relationships between the dependent and independent variables
 2. Normality of the residuals
 3. Homoscedasticity of the residuals
@@ -456,7 +469,7 @@ check_autocorrelation(rdt_int_lfw)
 
 
 
-###### Multiple model
+## Multiple model
 ```{r rdint multiple model}
 # multi food waste -----
 rdt_multi_fw <- food_waste_kg ~ container * time +
@@ -568,7 +581,7 @@ check_autocorrelation(rdt_multi_lfw)
 ```
 
 
-###### Polynomial model
+## Polynomial model
 ```{r rdint polynomial model}
 # poly- food waste -----
 rdt_poly_fw <- food_waste_kg ~ container * time + 
@@ -601,7 +614,7 @@ rdt_poly_lfw <- df %>%
 summary(rdt_poly_lfw)
 ```
 
-#### Ass-Poly
+## Ass-Poly
 1. Linearity of the relationships between the dependent and independent variables
 2. Normality of the residuals
 3. Homoscedasticity of the residuals
@@ -681,9 +694,9 @@ check_autocorrelation(rdt_poly_sfw)
 check_autocorrelation(rdt_poly_lfw)
 ```
 
-
-### Per Customer
-###### Interaction
+\newpage
+# Per Customer
+## Interaction
 ```{r rdint per customer model interaction}
 ################ Interaction
 
@@ -710,7 +723,7 @@ rdt_int_lfw_p <- df %>%
 summary(rdt_int_lfw_p)
 ```
 
-#### Ass-Interaction
+## Ass-Interaction
 1. Linearity of the relationships between the dependent and independent variables
 2. Normality of the residuals
 3. Homoscedasticity of the residuals
@@ -784,7 +797,7 @@ check_autocorrelation(rdt_int_sfw_p)
 check_autocorrelation(rdt_int_lfw_p)
 ```
 
-###### Multiple model
+## Multiple model
 ```{r rdint per customer model multiple}
 ## Multiple model ----
 # multi food waste per customer -----
@@ -815,7 +828,7 @@ rdt_multi_lfw_p <- df %>%
 summary(rdt_multi_lfw_p)
 ```
 
-#### Ass-Multiple
+## Ass-Multiple
 1. Linearity of the relationships between the dependent and independent variables
 2. Normality of the residuals
 3. Homoscedasticity of the residuals
@@ -895,7 +908,7 @@ check_autocorrelation(rdt_multi_sfw_p)
 check_autocorrelation(rdt_multi_lfw_p)
 ```
 
-###### polynomial model
+## polynomial model
 ```{r rdint per customer quadatic model}
 # poly- food waste per customer -----
 rdt_poly_fw_p <- food_waste_p_kg ~ container * time + 
@@ -928,7 +941,7 @@ rdt_poly_lfw_p <- df %>%
 summary(rdt_poly_lfw_p)
 ```
 
-#### Ass-Poly
+## Ass-Poly
 1. Linearity of the relationships between the dependent and independent variables
 2. Normality of the residuals
 3. Homoscedasticity of the residuals
@@ -1008,7 +1021,7 @@ check_autocorrelation(rdt_poly_sfw_p)
 check_autocorrelation(rdt_poly_lfw_p)
 ```
 
-#### Cubic model
+## Cubic model
 ```{r rdint per customer cubic model}
 # poly- food waste per customer -----
 rdt_poly3_fw_p <- food_waste_p_kg ~ container * time + 
@@ -1041,7 +1054,7 @@ rdt_poly3_lfw_p <- df %>%
 summary(rdt_poly3_lfw_p)
 ```
 
-#### Quartic model
+## Quartic model
 ```{r rdint per customer quartic model}
 # poly- food waste per customer -----
 rdt_poly4_fw_p <- food_waste_p_kg ~ container * time + 
@@ -1073,8 +1086,8 @@ rdt_poly4_lfw_p <- df %>%
             lm(rdt_poly4_lfw_p, data = .)
 summary(rdt_poly4_lfw_p)
 ```
-
-#### Some model
+\newpage
+## Some model
 ```{r sales model}
 # sales base model
 rdt_sales <- sales ~ container * time
@@ -1101,15 +1114,10 @@ rdt_sales <- df %>%
             lm(rdt_sales, data = .)
 summary(rdt_sales)
 ```
-
-### Local Regression
-### per Customer
+\newpage
+# Local Regression
+## per Customer
 ```{r local regression in time window}
-library(purrr)
-library(tidyr)
-library(tidyverse)
-library(broom)
-
 bandwidth = 25
 # Local Regression of container on food_waste_kg ----
 loc_fw_p <- df %>%
@@ -1133,7 +1141,7 @@ loc_lfw_p <- df %>%
 summary(loc_lfw_p)
 ```
 
-###### Interaction
+## Interaction
 ```{r local regression interaction in time window}
 bandwidth = 25
 
@@ -1181,7 +1189,7 @@ results_local %>%
   ggtitle("Estimated Container Charge Effect on Food Waste with Interaction")
 ```
 
-###### Multiple 
+## Multiple 
 ```{r local regression multiple with time window}
 bandwidth = 25
 
@@ -1257,7 +1265,7 @@ results_local_multi_donut %>%
   geom_pointrange() +
   geom_hline(yintercept = 0, linetype = "dashed") +
   xlab("Band Width") + ylab("Estimated Effect") +
-  ggtitle("Estimated Container Charge Effect on Food Waste with Multiple Model")
+  ggtitle("Estimated Container Charge Donut Effect on Food Waste with Multiple Model")
 ```
 
 

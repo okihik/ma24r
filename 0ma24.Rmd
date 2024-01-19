@@ -50,7 +50,7 @@ sheets <- merge(sheet.raw, sheet.net, by = "date")
 ```{r day of the week, warning=F}
 # based day of the week must be either Tue, Wed, Thu, Fri, Sat, Sun.
 rm(sheet.week)
-sheet.week <- prepWeek(sheet.net, "Sun")
+sheet.week <-prepWeek(sheet.net, "Sun")
 # View(sheet.week)
 # rm(df)
 # sheets <- merge(sheets, sheet.week, by = "date")
