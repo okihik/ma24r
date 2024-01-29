@@ -56,7 +56,7 @@ deptData <- df %>%
 # correlation between independent variables ------------------------------------
 deptData %>% cor_mat()
 # correlation p-values ---------------------------------------------------------
-deptData %>% cor_pmat()
+deptData %>% ggcorrplot::cor_pmat()
 
 # visulalization
 deptData %>%
@@ -64,6 +64,30 @@ deptData %>%
   cor_reorder() %>%
   pull_lower_triangle() %>%
   cor_plot(label = TRUE) 
+```
+
+# Correlation b/w dependent vars.(food loss and food waste)
+```{r correlation_log_dep.vars}
+# independent variables ----
+log_deptData <- df %>%
+  filter(is_closed %in% FALSE) %>%
+  rstatix::select(c(food_waste_kg,liquid_waste_kg,solid_waste_kg))%>%
+  log()
+log_deptData <- log_deptData + 1
+  # select(c(food_loss_kg,food_waste_kg,
+  #          liquid_waste_kg,solid_waste_kg))
+
+# correlation between independent variables ------------------------------------
+log_deptData %>% cor_mat()
+# correlation p-values ---------------------------------------------------------
+log_deptData %>% ggcorrplot::cor_pmat()
+
+# visulalization
+# log_deptData %>%
+#   cor_mat() %>%
+#   cor_reorder() %>%
+#   pull_lower_triangle() %>%
+#   cor_plot(label = TRUE) 
 ```
 
 \newpage
@@ -79,7 +103,9 @@ indeptData <- df %>%
 # correlation between independent variables ------------------------------------
 indeptData %>% cor_mat()
 # correlation p-values ---------------------------------------------------------
-indeptData %>% cor_pmat()
+indeptData %>% 
+  ggcorrplot::cor_pmat() %>% 
+   round(digits = 4)
 
 # visulalization
 indeptData %>%
@@ -99,9 +125,9 @@ indeptData <- df %>%
            customers, liquors, sales))
 
 # correlation between independent variables ------------------------------------
-indeptData %>% cor_mat()
+indeptData %>% rstatix::cor_mat()
 # correlation p-values ---------------------------------------------------------
-indeptData %>% cor_pmat()
+indeptData %>% ggcorrplot::cor_pmat()
 
 # visulalization
 indeptData %>%
@@ -133,7 +159,7 @@ indept_corr %>%
 # customers,fulls,halfs,takeouts,liquors,sales
 pca_bus <- df %>%
   filter(is_closed == FALSE) %>%
-  rstatix::select(c(customers,fulls,halfs,takeouts,liquors,sales)) %>%
+  select(c(customers,fulls,halfs,takeouts,liquors,sales)) %>%
   prcomp()
 pca_bus
 
@@ -336,7 +362,6 @@ scatter_dens_liquied_waste_temp <-
 scatter_dens_liquied_waste_temp
 
 rm("dens_waste","dens_temp","scatter_waste_temp")
-
 ```
 
 ## FW with humidity
