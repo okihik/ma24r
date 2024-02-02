@@ -196,6 +196,50 @@ unlink("scttr_plts.pdf")
 
 
 # Log-Linear RDiT Model
+## No Interaction
+```{r rdint log-linear model no interaction}
+# Interaction
+## simple food waste per customer -----
+rdt_fw_log <- log_food_waste_kg ~ container + time +
+                                      temp_c + humi_p + prcp_mm + 
+                                      liquors + sales + halfs +
+                                      tueE + wedE+ thuE+ friE+ satE+
+                                      I(t_01^2) + I(t_01^3)
+rdt_fw_log <- df %>% 
+            filter(!is_closed) %>% 
+            lm(rdt_fw_log, data = .)
+summary(rdt_fw_log)
+
+# simple solid food waste per customer -----
+rdt_sfw_log <- log_solid_waste_kg ~ container + time  +
+                                      temp_c + humi_p + prcp_mm + 
+                                      liquors + sales + halfs +
+                                      tueE + wedE+ thuE+ friE+ satE+
+                                      I(t_01^2) + I(t_01^3)
+rdt_sfw_log <- df %>% 
+            filter(!is_closed) %>% 
+            lm(rdt_sfw_log, data = .)
+summary(rdt_sfw_log)
+
+# simple liquid food waste per customer -----
+rdt_lfw_log <- log_liquid_waste_kg ~ container + time  +
+                                      temp_c + humi_p + prcp_mm + 
+                                      liquors + sales + halfs +
+                                      tueE + wedE+ thuE+ friE+ satE+
+                                      I(t_01^2) + I(t_01^3)
+rdt_lfw_log <- df %>% 
+            filter(!is_closed) %>% 
+            lm(rdt_lfw_log, data = .)
+summary(rdt_lfw_log)
+
+noInt_rdt_mult_of <- df %>% 
+  filter(!is_closed) %>% list(
+  "log food waste"   = lm(log_fw_rdt_mult_cubic,  data = .),
+  "log solid waste"  = lm(log_sfw_rdt_mult_cubic, data = .),
+  "log liquid waste" = lm(log_lfw_rdt_mult_cubic, data = .)
+)
+```
+
 ## Interaction
 ```{r rdint log-linear model interaction}
 # Interaction
@@ -719,27 +763,27 @@ check_heteroscedasticity(log_rdt_mult_cubic_of$`log liquid waste`)
 
 # 6. No multicollinearity
 ass_log_fw_rdt_cubic[[5]]  + labs(title = "VIF: Food Waste", subtitle = "")
-ass_log_sfw_rdt_cubic[[5]] + labs(title = "VIF: Solid Food Waste", subtitle = "")
-ass_log_lfw_rdt_cubic[[5]] + labs(title = "VIF: Liquid Food Waste", subtitle = "")
+# ass_log_sfw_rdt_cubic[[5]] + labs(title = "VIF: Solid Food Waste", subtitle = "")
+# ass_log_lfw_rdt_cubic[[5]] + labs(title = "VIF: Liquid Food Waste", subtitle = "")
 
 #6.1 check collinearity
 coll_fw  <- check_collinearity(log_rdt_mult_cubic_of$`log food waste`)
-coll_sfw <- check_collinearity(log_rdt_mult_cubic_of$`log solid waste`)
-coll_lfw <- check_collinearity(log_rdt_mult_cubic_of$`log liquid waste`)
+# coll_sfw <- check_collinearity(log_rdt_mult_cubic_of$`log solid waste`)
+# coll_lfw <- check_collinearity(log_rdt_mult_cubic_of$`log liquid waste`)
 
-coll_fw[10:15,]
+# coll_fw[10:15,]
 
 vif_fw  <- vif(log_rdt_mult_cubic_of$`log food waste`)
-vif_sfw <- vif(log_rdt_mult_cubic_of$`log solid waste`)
-vif_lfw <- vif(log_rdt_mult_cubic_of$`log liquid waste`)
+# vif_sfw <- vif(log_rdt_mult_cubic_of$`log solid waste`)
+# vif_lfw <- vif(log_rdt_mult_cubic_of$`log liquid waste`)
 
 barplot(vif_fw[3:8],  main = "VIF Food Waste", horiz = TRUE, col = "black",las = 2)
 # ggplot(vif_fw) +     
 #   geom_bar(stat = "identity") + 
 #   theme(axis.text.x = element_text(angle = 90, size = 10)) 
-
-barplot(vif_sfw[3:8], main = "VIF Values", horiz = TRUE, col = "dark orange")
-barplot(vif_lfw[3:8], main = "VIF Values", horiz = TRUE, col = "dark blue")
+# 
+# barplot(vif_sfw[3:8], main = "VIF Values", horiz = TRUE, col = "dark orange")
+# barplot(vif_lfw[3:8], main = "VIF Values", horiz = TRUE, col = "dark blue")
 
 ```
 ```{r eval = FALSE, echo = FALSE}
@@ -989,6 +1033,7 @@ continuity_temp <-
         axis.line = element_line(colour = "black"),
         axis.text.y=element_blank(), 
         axis.ticks.y=element_blank()) +
+  labs(color = "Extra Charge") +
   ggtitle("Daily Average Hourly Temperature in °C")
 continuity_temp
 
@@ -1005,6 +1050,7 @@ continuity_humidity <-
         axis.line = element_line(colour = "black"),
         axis.text.y=element_blank(), 
         axis.ticks.y=element_blank()) +
+  labs(color = "Extra Charge") +
   ggtitle("Daily Humidity in %")
 continuity_humidity
 
@@ -1021,6 +1067,7 @@ continuity_precip <-
         axis.line = element_line(colour = "black"),
         axis.text.y=element_blank(), 
         axis.ticks.y=element_blank()) +
+  labs(color = "Extra Charge") +
   ggtitle("Daily Precipitation in mm")
 continuity_precip
 
@@ -1037,6 +1084,7 @@ continuity_liquor <-
         axis.line = element_line(colour = "black"),
         axis.text.y=element_blank(), 
         axis.ticks.y=element_blank()) +
+  labs(color = "Extra Charge") +
   ggtitle("Daily Liquor Sold")
 continuity_liquor
 
@@ -1053,6 +1101,7 @@ continuity_halfs <-
         axis.line = element_line(colour = "black"),
         axis.text.y=element_blank(), 
         axis.ticks.y=element_blank()) +
+  labs(color = "Extra Charge") +
   ggtitle("Daily Half-size Sold")
 continuity_halfs
 
@@ -1068,6 +1117,7 @@ continuity_sales <-
         axis.line = element_line(colour = "black"),
         axis.text.y=element_blank(), 
         axis.ticks.y=element_blank()) +
+  labs(color = "Extra Charge") +
   # ylab("Daily Sales in CAD") +
   ggtitle("Daily Sales")
 continuity_sales
@@ -1075,11 +1125,12 @@ continuity_sales
 
 ```{r eval = FALSE, echo = FALSE}
 # Continuity test Figures
-cont_cov <- ggarrange(donut_d_fw,donut_dt_fw,
-                     donut_d_sfw,donut_dt_sfw,
-                     donut_d_lfw,donut_dt_lfw, 
+cont_cov <- ggarrange(continuity_temp,continuity_humidity,
+                     continuity_precip,continuity_liquor,
+                     continuity_halfs,continuity_sales, 
                      ncol=2, nrow=3, 
-                     common.legend = TRUE, legend="bottom")
+                     common.legend = TRUE, legend = "bottom",
+                     legend.grob  = )
 cont_cov
 ggsave("cont_cov.pdf",cont_cov)
 unlink("cont_cov.pdf")

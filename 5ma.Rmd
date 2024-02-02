@@ -1,0 +1,1509 @@
+---
+title: "Log-linear RDiT - MA Data Analysis"
+author: "Akihiko Mori"
+date: "02/02/2024"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(fig.show="hold", out.width="50%") 
+```
+
+
+```{r data import, warning=FALSE, message=FALSE, echo=FALSE}
+## Data Preprocess
+library(readr)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(tidyverse)
+library(broom)
+library(moderndive)
+library(ggplot2)
+library(tseries)
+library(car)
+library(modelsummary)
+#library(ggarrange)
+# data import
+rm(df)
+dataPass = "/Users/am/Library/CloudStorage/OneDrive-UNBC/00MAthesis/ma24r/ma24data"
+df <- read_csv(dataPass)
+rm(dataPass)
+```
+
+```{r data process, warning=FALSE, message=FALSE}
+# create per customer dependent variables
+df <- df %>% mutate(
+  food_waste_p_kg   = food_waste_kg/customers,
+  solid_waste_p_kg  = solid_waste_kg/customers,
+  liquid_waste_p_kg = liquid_waste_kg/customers
+  ) %>% 
+  replace_na(list(food_waste_p_kg   = 0,
+                  solid_waste_p_kg  = 0,
+                  liquid_waste_p_kg = 0))
+
+# create log transformation dependent variables
+df <- df %>% mutate(
+  log_food_waste_kg   = log(food_waste_kg+1),
+  log_solid_waste_kg  = log(solid_waste_kg+1),
+  log_liquid_waste_kg = log(liquid_waste_kg+1))
+
+# time var create
+df <- df %>%
+  filter(is_closed %in% FALSE) %>% 
+  mutate(time = seq(1:sum(!df$is_closed)))
+
+cutoff <- df %>% 
+  filter(date %in% as.Date('2023-01-03')) %>%
+  dplyr::select(time) %>% 
+  as.numeric()
+
+df <- df %>%  mutate(time = time - cutoff)
+
+# cutoff point 10/1
+cutoff_1101 <- df %>% filter(date %in% as.Date('2022-11-01')) %>% 
+  dplyr::select(time) %>% as.numeric()
+cutoff_1201 <- df %>% filter(date %in% as.Date('2022-12-03')) %>% 
+  dplyr::select(time) %>% as.numeric()
+cutoff_0101 <- df %>% filter(date %in% as.Date('2023-01-03')) %>% 
+  dplyr::select(time) %>% as.numeric()
+cutoff_0201 <- df %>% filter(date %in% as.Date('2023-02-01')) %>% 
+  dplyr::select(time) %>% as.numeric()
+cutoff_0301 <- df %>% filter(date %in% as.Date('2023-03-01')) %>% 
+  dplyr::select(time) %>% as.numeric()
+
+df <- df %>%  mutate(
+  t_11 = time - cutoff_1101,
+  t_12 = time - cutoff_1201,
+  t_01 = time - cutoff_0101,
+  t_02 = time - cutoff_0201,
+  t_03 = time - cutoff_0301,
+  D_11 = ifelse(date <= '2022-11-01', 0,1),
+  D_12 = ifelse(date <= '2022-12-03', 0,1),
+  D_01 = ifelse(date <= '2023-01-03', 0,1),
+  D_02 = ifelse(date <= '2023-02-01', 0,1),
+  D_03 = ifelse(date <= '2023-03-01', 0,1))
+```
+
+# Scatter plot
+## Food waste plots
+```{r plot daily RD in Time}
+### Color Legend ----
+# blue line is no interaction -> parallel effect
+# red line is with interaction -> not parallel
+# black dot line is overall effect
+
+# Daily Plot on food waste -----------------------------------------------
+daily_waste <- df %>% 
+  filter(is_closed %in% FALSE) %>% 
+  ggplot(., aes(x = as.Date(date), y = food_waste_kg)) +
+  geom_point(colour = "black") +
+  stat_smooth(aes(color = 'Overall'), method = "lm", formula = y ~ x,
+              linetype = "dashed", se = FALSE) +
+  geom_parallel_slopes(aes(group = container, color = 'No interaction'), 
+                       se = FALSE) +
+  stat_smooth(aes(group = container, color = 'interaction'),
+              method = "lm", formula = y ~ x, se = FALSE) +
+  geom_vline(xintercept = df$date[87], linetype="dotted", linewidth=1.25) +
+  scale_x_date(date_labels = "%b %d") +
+  scale_color_manual(name="Model Type",
+                     breaks = c('Overall','No interaction',
+                                'interaction','Poly'),
+                     values = c('Overall' ='black',
+                                'No interaction'='blue',
+                                'interaction'='red',
+                                'Poly' = 'dark green')) +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        legend.position = "right") +
+  xlab("Date") + ylab("Daily Food Waste (kg)") +
+  ggtitle("Container Charge Effect on Food Waste")
+daily_waste
+
+# Daily Plot on solid food waste -----------------------------------------
+daily_solid_waste <- 
+  df %>% filter(is_closed %in% FALSE) %>% 
+  ggplot(data = ., aes(x = as.Date(date), y = solid_waste_kg)) +
+  geom_point(colour = "dark orange") +
+  stat_smooth(aes(color = 'Overall'), method = "lm", formula = y ~ x,
+              linetype = "dashed", se = FALSE) +
+  geom_parallel_slopes(aes(group = container, color = 'No interaction'), 
+                       se = FALSE) +
+  stat_smooth(aes(group = container, color = 'interaction'), 
+              method = "lm", formula = y ~ x, se = FALSE) +
+  geom_vline(xintercept = df$date[87], linetype="dotted", linewidth=1.25) +
+  scale_x_date(date_labels = "%b %d") +
+  scale_color_manual(name="Model Type",
+                     breaks = c('Overall','No interaction',
+                                'interaction','Poly'),
+                     values = c('Overall' ='black',
+                                'No interaction'='blue',
+                                'interaction'='red',
+                                'Poly' = 'dark green')) +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        legend.position = "right") +
+  xlab("Date") + ylab("Daily Solid Food Waste (kg)") +
+  ggtitle("Container Charge Effect on Solid Food Waste")
+daily_solid_waste
+
+# Daily Plot on liquid food waste ----------------------------------------
+daily_liquid_waste <- 
+  df %>% filter(is_closed %in% FALSE) %>% 
+  ggplot(data = ., aes(x = as.Date(date), y = liquid_waste_kg)) +
+  geom_point(aes(color = "dark blue")) +
+  stat_smooth(aes(color = 'Overall'), method = "lm", 
+              formula = y ~ x,  linetype = "dashed", se = FALSE) +
+  geom_parallel_slopes(aes(group = container, color = 'No interaction'), 
+                       se = FALSE) +
+  stat_smooth(aes(group = container, color = 'interaction'),
+              method = "lm", formula = y ~ x, se = FALSE) +
+  geom_vline(xintercept = df$date[87], linetype="dotted", linewidth=1.25) +
+  scale_x_date(date_labels = "%b %d") +
+  scale_color_manual(name="Model Type",
+                     breaks = c('Overall','No interaction',
+                                'interaction','Poly'),
+                     values = c('Overall' ='black',
+                                'No interaction'='blue',
+                                'interaction'='red',
+                                'Poly' = 'dark green')) +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        legend.position = "right") +
+  xlab("Date") + ylab("Daily Liquid ood Waste (kg)") +
+  ggtitle("Container Charge Effect on Liquid Food Waste")
+daily_liquid_waste
+```
+
+```{r eval = FALSE, echo = FALSE}
+scttr_plts <- ggarrange(daily_waste,
+                        daily_solid_waste,
+                        daily_liquid_waste, 
+                        ncol=2, nrow=2, 
+                        common.legend = TRUE, legend="bottom")
+scttr_plts
+ggsave("scttr_plts.pdf",scttr_plts)
+unlink("scttr_plts.pdf")
+```
+
+
+# Log-Linear RDiT Model
+## No Interaction
+```{r rdint log-linear model no interaction}
+# Interaction
+## simple food waste per customer -----
+lm_fw_log <- log_food_waste_kg ~ D_01 + t_01 +
+                                      temp_c + humi_p + prcp_mm + 
+                                      liquors + sales + halfs +
+                                      tueE + wedE+ thuE+ friE+ satE+
+                                      I(t_01^2) + I(t_01^3)
+lm_fw_log <- df %>% 
+            filter(!is_closed) %>% 
+            lm(lm_fw_log, data = .)
+summary(lm_fw_log)
+
+# simple solid food waste per customer -----
+lm_sfw_log <- log_solid_waste_kg ~ container + time  +
+                                      temp_c + humi_p + prcp_mm + 
+                                      liquors + sales + halfs +
+                                      tueE + wedE+ thuE+ friE+ satE+
+                                      I(t_01^2) + I(t_01^3)
+lm_sfw_log <- df %>% 
+            filter(!is_closed) %>% 
+            lm(lm_sfw_log, data = .)
+summary(lm_sfw_log)
+
+# simple liquid food waste per customer -----
+lm_lfw_log <- log_liquid_waste_kg ~ container + time  +
+                                      temp_c + humi_p + prcp_mm + 
+                                      liquors + sales + halfs +
+                                      tueE + wedE+ thuE+ friE+ satE+
+                                      I(t_01^2) + I(t_01^3)
+lm_lfw_log <- df %>% 
+            filter(!is_closed) %>% 
+            lm(lm_lfw_log, data = .)
+summary(lm_lfw_log)
+
+lm_mult_of <- list(
+  "lm food waste"   = lm(lm_fw_log,  
+                         data = subset(df, df$is_closed == FALSE)),
+  "lm solid waste"  = lm(lm_fw_log, 
+                         data = subset(df, df$is_closed == FALSE)),
+  "lm liquid waste" = lm(lm_fw_log, 
+                         data = subset(df, df$is_closed == FALSE))
+)
+```
+
+## Interaction
+```{r rdint log-linear model interaction}
+# Interaction
+## simple food waste per customer -----
+rdt_int_fw_log <- log_food_waste_kg ~ container * time 
+
+rdt_int_fw_log <- df %>% 
+            filter(!is_closed) %>% 
+            lm(rdt_int_fw_log, data = .)
+summary(rdt_int_fw_log)
+
+# simple solid food waste per customer -----
+rdt_int_sfw_log <- log_solid_waste_kg ~ container * time 
+rdt_int_sfw_log <- df %>% 
+            filter(!is_closed) %>% 
+            lm(rdt_int_sfw_log, data = .)
+summary(rdt_int_sfw_log)
+
+# simple liquid food waste per customer -----
+rdt_int_lfw_log <- log_liquid_waste_kg ~ container * time 
+rdt_int_lfw_log <- df %>% 
+            filter(!is_closed) %>% 
+            lm(rdt_int_lfw_log, data = .)
+summary(rdt_int_lfw_log)
+```
+
+## Ass-Interaction
+1. Linearity of the relationships between the dependent and independent variables
+2. Normality of the residuals
+3. Homoscedasticity of the residuals
+4. No influential points (outliers)
+5. No multicollinearity
+6. Independence of the observations
+```{r assumption_interaction_fw_log RDiT}
+library(performance)
+ass_int_fw_log  <- plot(check_model(rdt_int_fw_log, detrend=FALSE, panel = FALSE))
+ass_int_sfw_log <- plot(check_model(rdt_int_sfw_log, detrend=FALSE,panel = FALSE))
+ass_int_lfw_log <- plot(check_model(rdt_int_lfw_log, detrend=FALSE,panel = FALSE))
+
+# 1. Linearity of the relationships between the dependent and independent variables
+# 1.1 plot residual vs fitted values
+ass_int_fw_log[[2]]  + labs(title = "Linearity: Food Waste", subtitle = "")
+ass_int_sfw_log[[2]] + labs(title = "Linearity: Solid Food Waste", subtitle = "")
+ass_int_lfw_log[[2]] + labs(title = "Linearity: Liquid Food Waste", subtitle = "")
+
+# 1.2 check linearity
+check_heteroscedasticity(rdt_int_fw_log)
+check_heteroscedasticity(rdt_int_sfw_log)
+check_heteroscedasticity(rdt_int_lfw_log)
+
+# 2. Normality of the residuals
+# 2.1 histogram of residuals
+# Normality of Residuals: Food Waste
+plot(check_normality(rdt_int_fw_log), type = "density") + 
+  labs(title = "Normality of Residuals: Food Waste", subtitle = "")
+# Normality of Residuals: Solid Food Waste
+plot(check_normality(rdt_int_sfw_log), type = "density") + 
+  labs(title = "Normality of Residuals: Solid Food Waste", subtitle = "") 
+# Normality of Residuals: Liquid Food Waste
+plot(check_normality(rdt_int_lfw_log), type = "density") + 
+  labs(title = "Normality of Residuals: Liquid Food Waste", subtitle = "") 
+
+# 2.2 Normality of Residuals
+ass_int_fw_log[[6]]  + labs(title = "QQ Plot of Residuals: Food Waste", subtitle = "")
+ass_int_sfw_log[[6]] + labs(title = "QQ Plot of Residuals: Solid Food Waste", subtitle = "")
+ass_int_lfw_log[[6]] + labs(title = "QQ Plot of Residuals: Liquid Food Waste", subtitle = "")
+
+# 2.3 shapiro-wilk normality test
+check_normality(rdt_int_fw_log)
+check_normality(rdt_int_sfw_log)
+check_normality(rdt_int_lfw_log)
+
+# 3. Homoscedasticity of the residuals
+# 3.1 plot residuals
+ass_int_fw_log[[3]]  + labs(title = "Homoscedasticity: Food Waste", subtitle = "")
+ass_int_sfw_log[[3]] + labs(title = "Homoscedasticity: Solid Food Waste", subtitle = "")
+ass_int_lfw_log[[3]] + labs(title = "Homoscedasticity: Liquid Food Waste", subtitle = "")
+
+# 3.2 Breusch-Pagan test
+lmtest::bptest(rdt_int_fw_log)
+lmtest::bptest(rdt_int_sfw_log)
+lmtest::bptest(rdt_int_lfw_log)
+
+# 4. No influential points (outliers)
+ass_int_fw_log[[4]]  + labs(title = "Outliers: Food Waste", subtitle = "")
+ass_int_sfw_log[[4]] + labs(title = "Outliers: Solid Food Waste", subtitle = "")
+ass_int_lfw_log[[4]] + labs(title = "Outliers: Liquid Food Waste", subtitle = "")
+
+# 4.2 Check outliers
+check_outliers(rdt_int_fw_log)
+check_outliers(rdt_int_sfw_log)
+check_outliers(rdt_int_lfw_log)
+
+# 5. No multicollinearity
+ass_int_fw_log[[5]]  + labs(title = "VIF: Food Waste", subtitle = "")
+ass_int_sfw_log[[5]] + labs(title = "VIF: Solid Food Waste", subtitle = "")
+ass_int_lfw_log[[5]] + labs(title = "VIF: Liquid Food Waste", subtitle = "")
+
+# 6. Independence of the observations
+# Autocorrelation
+check_autocorrelation(rdt_int_fw_log)
+check_autocorrelation(rdt_int_sfw_log)
+check_autocorrelation(rdt_int_lfw_log)
+```
+
+## Multiple model
+```{r rdint log model multiple}
+## Multiple model ----
+# multi food waste -----
+rdt_fw <- log_food_waste_kg ~ D_01 * t_01 +
+                            temp_c + humi_p + prcp_mm + 
+                            tueE + wedE+ thuE+ friE+ satE+
+                            liquors + sales + halfs
+rdt_fw <- df %>% 
+            filter(!is_closed) %>% 
+            lm(rdt_fw, data = .)
+summary(rdt_fw)
+
+# multi solid food waste-----
+rdt_sfw <- log_solid_waste_kg ~ D_01 * t_01 +
+                            temp_c + humi_p + prcp_mm + 
+                            tueE + wedE+ thuE+ friE+ satE+
+                            liquors + sales + halfs
+rdt_sfw <- df %>% 
+            filter(!is_closed) %>% 
+            lm(rdt_sfw, data = .)
+summary(rdt_sfw)
+
+# multi liquid food waste -----
+rdt_lfw <- log_liquid_waste_kg ~ D_01 * t_01 +
+                            temp_c + humi_p + prcp_mm + 
+                            tueE + wedE+ thuE+ friE+ satE+
+                            liquors + sales + halfs
+rdt_lfw <- df %>% 
+            filter(!is_closed) %>% 
+            lm(rdt_lfw, data = .)
+summary(rdt_lfw)
+
+rdt_of <- list(
+  "rdt food waste"   = lm(rdt_fw,  
+                         data = subset(df, df$is_closed == FALSE)),
+  "rdt solid waste"  = lm(rdt_sfw, 
+                         data = subset(df, df$is_closed == FALSE)),
+  "rdt liquid waste" = lm(rdt_lfw, 
+                         data = subset(df, df$is_closed == FALSE))
+)
+```
+
+## Ass-Multiple
+1. Linearity of the relationships between the dependent and independent variables
+2. Normality of the residuals
+3. Homoscedasticity of the residuals
+4. No influential points (outliers)
+5. No multicollinearity
+6. Independence of the observations
+```{r assumption_multiple_fw_log RDiT}
+library(performance)
+ass_multi_fw_log  <- plot(check_model(rdt_fw,  
+                                      detrend=FALSE,
+                                      panel = FALSE,
+                                      colors = c("#3aaf85","black","#cd201f")))
+ass_multi_sfw_log <- plot(check_model(rdt_sfw, 
+                                      detrend=FALSE,
+                                      panel = FALSE,
+                                      colors = c("#3aaf85","dark orange","#cd201f")))
+ass_multi_lfw_log <- plot(check_model(rdt_lfw, 
+                                      detrend=FALSE,
+                                      panel = FALSE,
+                                         colors = c("#3aaf85","dark blue","#cd201f")))
+
+# 1. Independence of the observations --------
+# 1.1 augmented Dickey-Fuller test 
+adf.test(df$log_food_waste_kg)
+adf.test(df$log_solid_waste_kg)
+adf.test(df$log_liquid_waste_kg)
+
+# 1.2 Autocorrelation DW test
+check_autocorrelation(rdt_of$`rdt food waste`)
+check_autocorrelation(rdt_of$`rdt solid waste`)
+check_autocorrelation(rdt_of$`rdt liquid waste`)
+
+# 1.2 perform Durbin-Watson test
+durbinWatsonTest(rdt_of$`rdt food waste`)
+durbinWatsonTest(rdt_of$`rdt solid waste`)
+durbinWatsonTest(rdt_of$`rdt liquid waste`)  
+dwtest(rdt_of$`rdt food waste`)
+dwtest(rdt_of$`rdt solid waste`)
+dwtest(rdt_of$`rdt liquid waste`)   
+
+
+# 2. Normality of the residuals -----------
+# 2.1 histogram of residuals
+# Normality of Residuals: Food Waste
+ass_norm_fw <- plot(check_normality(rdt_of$`rdt food waste`), 
+                    type = "density") + 
+  labs(title = "Normality of Residuals: Food Waste", subtitle = "")
+# Normality of Residuals: Solid Food Waste
+ass_norm_sfw <- plot(check_normality(rdt_of$`rdt solid waste`), 
+                    type = "density") + 
+  labs(title = "Normality of Residuals: Solid Food Waste", subtitle = "")
+# Normality of Residuals: Liquid Food Waste
+ass_norm_lfw <- plot(check_normality(rdt_of$`rdt liquid waste`), 
+                    type = "density") + 
+  labs(title = "Normality of Residuals: Liquid Food Waste", subtitle = "")
+ass_norm_fw;ass_norm_sfw;ass_norm_lfw
+
+
+# 2.2 QQ plots of Residuals
+ass_qq_fw <- ass_multi_fw_log[[6]]  + 
+  labs(title = "QQ Plot of Residuals: Food Waste", subtitle = "")
+ass_qq_sfw <- ass_multi_sfw_log[[6]] + 
+  labs(title = "QQ Plot of Residuals: Solid Food Waste", subtitle = "")
+ass_qq_lfw <- ass_multi_lfw_log[[6]] + 
+  labs(title = "QQ Plot of Residuals: Liquid Food Waste", subtitle = "")
+ass_qq_fw;ass_qq_sfw;ass_qq_lfw
+
+# 2.3 shapiro-wilk normality test
+check_normality(rdt_of$`rdt food waste`)
+check_normality(rdt_of$`rdt solid waste`)
+check_normality(rdt_of$`rdt liquid waste`)
+
+
+# 3. No influential points (outliers) --------
+ass_out_fw  <- ass_multi_fw_log[[4]]  + 
+  labs(title = "Outliers: Food Waste", subtitle = "")
+ass_out_sfw <- ass_multi_sfw_log[[4]] + 
+  labs(title = "Outliers: Solid Food Waste", subtitle = "")
+ass_out_lfw <- ass_multi_lfw_log[[4]] + 
+  labs(title = "Outliers: Liquid Food Waste", subtitle = "")
+ass_out_fw;ass_out_sfw;ass_out_lfw
+
+# 3.1 Check outliers
+check_outliers(rdt_of$`rdt food waste`)
+check_outliers(rdt_of$`rdt solid waste`)
+check_outliers(rdt_of$`rdt liquid waste`)
+
+# 4. Homoscedasticity of the residuals -----
+# 4.1 plot residuals
+ass_homo_fw  <- ass_multi_fw_log[[3]]  + 
+  labs(title = "Homoscedasticity: Food Waste", subtitle = "")
+ass_homo_sfw <- ass_multi_sfw_log[[3]] + 
+  labs(title = "Homoscedasticity: Solid Food Waste", subtitle = "")
+ass_homo_lfw <- ass_multi_lfw_log[[3]] + 
+  labs(title = "Homoscedasticity: Liquid Food Waste", subtitle = "")
+ass_homo_fw;ass_homo_sfw;ass_homo_lfw
+
+
+# 4.2 Breusch-Pagan test
+# to test for heteroskedasticity in a linear regression model.
+# 
+lmtest::bptest(rdt_of$`rdt food waste`)
+lmtest::bptest(rdt_of$`rdt solid waste`)
+lmtest::bptest(rdt_of$`rdt liquid waste`)
+
+# 5. Linearity of the relationships b/w the dependent and independent variables ------
+# 5.1 plot residual vs fitted values
+ass_ln_fw  <- ass_multi_fw_log[[2]]  + 
+  labs(title = "Linearity: Food Waste", subtitle = "")
+ass_ln_sfw <- ass_multi_sfw_log[[2]] + 
+  labs(title = "Linearity: Solid Food Waste", subtitle = "")
+ass_ln_lfw <- ass_multi_lfw_log[[2]] + 
+  labs(title = "Linearity: Liquid Food Waste", subtitle = "")
+ass_ln_fw;ass_ln_sfw;ass_ln_lfw
+
+
+# 5.2 check linearity
+check_heteroscedasticity(rdt_of$`rdt food waste`)
+check_heteroscedasticity(rdt_of$`rdt solid waste`)
+check_heteroscedasticity(rdt_of$`rdt liquid waste`)
+
+# 6. No multicollinearity
+ass_multi_sfw_log[[5]]  + labs(title = "VIF", subtitle = "")
+#6.1 check collinearity
+coll_fw  <- check_collinearity(rdt_of$`rdt food waste`)
+coll_fw
+```
+```{r eval = FALSE, echo = FALSE}
+ass_norm_plts <- ggarrange(ass_norm_fw,
+                         ass_norm_sfw,
+                         ass_norm_lfw, 
+                         ncol=2, nrow=2, 
+                         common.legend = TRUE, legend="bottom")
+ass_norm_plts
+ggsave("ass_norm_plts.pdf", ass_norm_plts)
+unlink("ass_norm_plts.pdf")
+
+ass_out_plts <- ggarrange(ass_out_fw,
+                         ass_out_sfw,
+                         ass_out_lfw, 
+                         ncol=2, nrow=2, 
+                         common.legend = TRUE, legend="bottom")
+ass_out_plts
+ggsave("ass_out_plts.pdf", ass_out_plts)
+unlink("ass_out_plts.pdf")
+
+ass_qq_plts <- ggarrange(ass_qq_fw,
+                         ass_qq_sfw,
+                         ass_qq_lfw, 
+                         ncol=2, nrow=2, 
+                         common.legend = TRUE, legend="bottom")
+ass_qq_plts
+ggsave("ass_qq_plts.pdf", ass_qq_plts)
+unlink("ass_qq_plts.pdf")
+
+ass_homo_plts <- ggarrange(ass_homo_fw,
+                         ass_homo_sfw,
+                         ass_homo_lfw, 
+                         ncol=2, nrow=2, 
+                         common.legend = TRUE, legend="bottom")
+ass_homo_plts
+ggsave("ass_homo_plts.pdf", ass_homo_plts)
+unlink("ass_homo_plts.pdf")
+
+ass_ln_plts <- ggarrange(ass_ln_fw,
+                         ass_ln_sfw,
+                         ass_ln_lfw, 
+                         ncol=2, nrow=2, 
+                         common.legend = TRUE, legend="bottom")
+ass_ln_plts
+ggsave("ass_ln_plts.pdf", ass_ln_plts)
+unlink("ass_ln_plts.pdf")
+```
+
+```{r eval = FALSE, echo = FALSE}
+ass_ln_plts <- ggarrange(ass_ln_fw,
+                        ass_ln_sfw,
+                        ass_ln_lfw, 
+                        ncol=2, nrow=2, 
+                        common.legend = TRUE, legend="bottom")
+ass_ln_plts
+ggsave("ass_ln_plts.pdf", ass_ln_plts)
+unlink("ass_ln_plts.pdf")
+```
+
+# Local log-linear Regression
+## Interaction - b/w week and month
+```{r fw local regression interaction wk_mth}
+#optimal bandwidth 
+library(rdd)
+IKbandwidth(df$time,df$log_food_waste_kg,   kernel = "rectangular")
+IKbandwidth(df$time,df$log_solid_waste_kg,  kernel = "rectangular")
+IKbandwidth(df$time,df$log_liquid_waste_kg, kernel = "rectangular")
+
+# bandwidth between week to monthly 
+# Visualization local regression ----
+locals <- tibble(bandwidth = seq(from = 3, to = 25, by = 1))
+results_local_d <- locals %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth,
+                      ~ lm(log_food_waste_kg ~ D_01 * t_01,
+                                 data = subset(df, is_closed == FALSE), 
+                                 subset = (abs(t_01) <= bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "D_01")
+
+results_local_dt <- locals %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth,
+                      ~ lm(log_food_waste_kg ~ D_01 * t_01,
+                                 data = subset(df, is_closed == FALSE), 
+                                 subset = (abs(t_01) <= bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "D_01:t_01")
+
+plt_loc_log_fw_d <- results_local_d %>% 
+  ggplot(aes(x = bandwidth, y = exp(estimate)-1,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point() +
+  geom_pointrange() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  xlab("Bandwidth in day") + ylab("Estimated Effect in kg") +
+  ggtitle("Estimated Container Charge Effect on Food Waste")
+plt_loc_log_fw_d
+
+plt_loc_log_fw_dt <- results_local_dt %>% 
+  ggplot(aes(x = bandwidth, y = exp(estimate)-1,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point() +
+  geom_pointrange() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  xlab("Bandwidth in day") + ylab("Estimated Trend Effect in kg") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  ggtitle("Estimated Slope Change on Food Waste")
+plt_loc_log_fw_dt
+```
+
+```{r sfw local regression interaction wk_mth}
+# bandwidth between week to monthly 
+# Visualization local regression ----
+results_local_d <- locals %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth,
+                      ~ lm(log_solid_waste_kg ~ D_01 * t_01,
+                                 data = subset(df, is_closed == FALSE), 
+                                 subset = (abs(t_01) <= bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "D_01")
+
+results_local_dt <- locals %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth,
+                      ~ lm(log_solid_waste_kg ~ D_01 * t_01,
+                                 data = subset(df, is_closed == FALSE), 
+                                 subset = (abs(t_01) <= bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "D_01:t_01")
+
+plt_loc_log_sfw_d <- results_local_d %>% 
+  ggplot(aes(x = bandwidth, y = exp(estimate)-1,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point(colour="dark orange") +
+  geom_pointrange(colour="dark orange") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  xlab("Bandwidth in day") + ylab("Estimated Effect in kg") +
+  ggtitle("Estimated Container Charge Effect on Solid Food Waste")
+plt_loc_log_sfw_d
+
+plt_loc_log_sfw_dt <- results_local_dt %>% 
+  ggplot(aes(x = bandwidth, y = exp(estimate)-1,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point(colour="dark orange") +
+  geom_pointrange(colour="dark orange") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  xlab("Bandwidth in day") + ylab("Estimated Trend Effect in kg") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  ggtitle("Estimated Slope Change on Solid Food Waste")
+plt_loc_log_sfw_dt
+```
+```{r lfw local regression interaction wk_mth}
+# bandwidth between week to monthly 
+# Visualization local regression ----
+results_local_d <- locals %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth,
+                      ~ lm(log_liquid_waste_kg ~ D_01 * t_01,
+                                 data = subset(df, is_closed == FALSE), 
+                                 subset = (abs(t_01) <= bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "D_01")
+
+results_local_dt <- locals %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth,
+                      ~ lm(log_liquid_waste_kg ~ D_01 * t_01,
+                                 data = subset(df, is_closed == FALSE), 
+                                 subset = (abs(t_01) <= bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "D_01:t_01")
+
+plt_loc_log_lfw_d <- results_local_d %>% 
+  ggplot(aes(x = bandwidth, y = exp(estimate)-1,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point(colour="dark blue") +
+  geom_pointrange(colour="dark blue") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  xlab("Bandwidth in day") + ylab("Estimated Effect in kg") +
+  ggtitle("Estimated Container Charge Effect on Liquid Food Waste")
+plt_loc_log_lfw_d
+
+plt_loc_log_lfw_dt <- results_local_dt %>% 
+  ggplot(aes(x = bandwidth, y = exp(estimate)-1,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point(colour="dark blue") +
+  geom_pointrange(colour="dark blue") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  xlab("Bandwidth in day") + ylab("Estimated Trend Effect in kg") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  ggtitle("Estimated Slope Change on Liquid Food Waste")
+plt_loc_log_lfw_dt
+```
+
+
+```{r eval = FALSE, echo = FALSE}
+loc_plts <- ggarrange(plt_loc_log_fw_d,plt_loc_log_fw_dt,
+                      plt_loc_log_sfw_d,plt_loc_log_sfw_dt,
+                      plt_loc_log_lfw_d,plt_loc_log_lfw_dt, 
+                      ncol=2, nrow=3, 
+                        common.legend = TRUE, legend="bottom")
+loc_plts
+ggsave("loc_plts.pdf",loc_plts)
+unlink("loc_plts.pdf")
+```
+
+## Covariates continuity test
+```{r tsPlot_covariates}
+## Time Series plots of:
+# 1. weather conditions: temperature, humidity, precipitation
+# 2. # orders + dine in + size + liquor + daily sales (confident)
+df_cont_cov <-df %>% 
+  filter(date >= as.Date('2022-12-01') & 
+         date <= as.Date('2023-01-31'))
+# View(df_cont_cov)
+
+# Time Series Plot on temperature ---------------------------------
+continuity_temp <- 
+  ggplot(data = df_cont_cov, aes(x = as.Date(date), y = temp_c)) +
+  geom_point() +
+  stat_smooth(aes(color = factor(container)),
+              method = "lm", se = TRUE, formula = y~x) +
+  scale_x_date(date_labels = "%b %d") +
+  xlab("Date") + 
+  # ylab("Temperature in Degree Celsius") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.text.y=element_blank(), 
+        axis.ticks.y=element_blank()) +
+  labs(color = "Extra Charge") +
+  ggtitle("Daily Average Hourly Temperature in °C")
+continuity_temp
+
+# Time Series Plot on humidity ---------------------------------
+continuity_humidity <- 
+  ggplot(data = df_cont_cov, aes(x = as.Date(date), y = humi_p)) +
+  geom_point() +
+  stat_smooth(aes(color = factor(container)),
+              method = "lm", se = TRUE, formula = y~x) +
+  scale_x_date(date_labels = "%b %d") +
+  xlab("Date") + 
+  # ylab("Humidity in Percent") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.text.y=element_blank(), 
+        axis.ticks.y=element_blank()) +
+  labs(color = "Extra Charge") +
+  ggtitle("Daily Humidity in %")
+continuity_humidity
+
+# Time Series Plot on precipitation ---------------------------------
+continuity_precip <- 
+  ggplot(data = df_cont_cov, aes(x = as.Date(date), y = prcp_mm)) +
+  geom_point() +
+  stat_smooth(aes(color = factor(container)),
+              method = "lm", se = TRUE, formula = y~x) +
+  scale_x_date(date_labels = "%b %d") +
+  xlab("Date") + 
+  # ylab("Precipitation in millimetre") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.text.y=element_blank(), 
+        axis.ticks.y=element_blank()) +
+  labs(color = "Extra Charge") +
+  ggtitle("Daily Precipitation in mm")
+continuity_precip
+
+# Time Series Plot on liquors ---------------------------------
+continuity_liquor <- 
+  ggplot(data = df_cont_cov, aes(x = as.Date(date), y = liquors)) +
+  geom_point() +
+  stat_smooth(aes(color = factor(container)),
+              method = "lm", se = TRUE, formula = y~x) +
+  scale_x_date(date_labels = "%b %d") +
+  xlab("Date") + 
+  # ylab("Daily Number of Liquor Sold") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.text.y=element_blank(), 
+        axis.ticks.y=element_blank()) +
+  labs(color = "Extra Charge") +
+  ggtitle("Daily Liquor Sold")
+continuity_liquor
+
+# Time Series Plot on halfs ---------------------------------
+continuity_halfs <- 
+  ggplot(data = df_cont_cov, aes(x = as.Date(date), y = halfs)) +
+  geom_point() +
+  stat_smooth(aes(color = factor(container)),
+              method = "lm", se = TRUE, formula = y~x) +
+  scale_x_date(date_labels = "%b %d") +
+  xlab("Date") +
+  # ylab("Daily Number of Half-size") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.text.y=element_blank(), 
+        axis.ticks.y=element_blank()) +
+  labs(color = "Extra Charge") +
+  ggtitle("Daily Half-size Sold")
+continuity_halfs
+
+# Time Series Plot on sales ---------------------------------
+continuity_sales <- 
+  ggplot(data = df_cont_cov, aes(x = as.Date(date), y = sales)) +
+  geom_point() +
+  stat_smooth(aes(color = factor(container)),
+              method = "lm", se = TRUE, formula = y~x) +
+  scale_x_date(date_labels = "%b %d") +
+  xlab("Date") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.text.y=element_blank(), 
+        axis.ticks.y=element_blank()) +
+  labs(color = "Extra Charge") +
+  # ylab("Daily Sales in CAD") +
+  ggtitle("Daily Sales")
+continuity_sales
+```
+
+```{r eval = FALSE, echo = FALSE}
+# Continuity test Figures
+cont_cov <- ggarrange(continuity_temp,continuity_humidity,
+                     continuity_precip,continuity_liquor,
+                     continuity_halfs,continuity_sales, 
+                     ncol=2, nrow=3, 
+                     common.legend = TRUE, legend = "bottom",
+                     legend.grob  = )
+cont_cov
+ggsave("cont_cov.pdf",cont_cov)
+unlink("cont_cov.pdf")
+```
+
+
+## Placebo test
+```{r placebo test}
+# df %>% filter(is_closed %in% FALSE) %>% select(date)
+
+# regression 
+
+# formulas: cutoff 11/01
+log_fw_rdt_mult_cubic_11 <- log_food_waste_kg ~ D_11 * t_11 + 
+                                             temp_c + humi_p + prcp_mm + 
+                                             liquors + sales + halfs +
+                                             tueE + wedE+ thuE+ friE+ satE+
+                                             I(t_11^2) +  I(t_11^3)
+log_sfw_rdt_mult_cubic_11 <- log_solid_waste_kg ~ D_11 * t_11 + 
+                                             temp_c + humi_p + prcp_mm + 
+                                             liquors + sales + halfs +
+                                             tueE + wedE+ thuE+ friE+ satE+
+                                             I(t_11^2) +  I(t_11^3)
+log_lfw_rdt_mult_cubic_11 <- log_liquid_waste_kg ~ D_11 * t_11 + 
+                                             temp_c + humi_p + prcp_mm + 
+                                             liquors + sales + halfs +
+                                             tueE + wedE+ thuE+ friE+ satE+
+                                             I(t_11^2) +  I(t_11^3)
+
+# formulas: cutoff 12/01
+log_fw_rdt_mult_cubic_12 <- log_food_waste_kg ~ D_12 * t_12 + 
+                                             temp_c + humi_p + prcp_mm + 
+                                             liquors + sales + halfs +
+                                             tueE + wedE+ thuE+ friE+ satE+
+                                             I(t_12^2) +  I(t_12^3)
+log_sfw_rdt_mult_cubic_12 <- log_solid_waste_kg ~ D_12 * t_12 + 
+                                             temp_c + humi_p + prcp_mm + 
+                                             liquors + sales + halfs +
+                                             tueE + wedE+ thuE+ friE+ satE+
+                                             I(t_12^2) +  I(t_12^3)
+log_lfw_rdt_mult_cubic_12 <- log_liquid_waste_kg ~ D_12 * t_12 + 
+                                             temp_c + humi_p + prcp_mm + 
+                                             liquors + sales + halfs +
+                                             tueE + wedE+ thuE+ friE+ satE+
+                                             I(t_12^2) +  I(t_12^3)
+
+# formulas: cutoff 2/01
+log_fw_rdt_mult_cubic_02 <- log_food_waste_kg ~ D_02 * t_02 + 
+                                             temp_c + humi_p + prcp_mm + 
+                                             liquors + sales + halfs +
+                                             tueE + wedE+ thuE+ friE+ satE+
+                                             I(t_02^2) + I(t_02^3)
+log_sfw_rdt_mult_cubic_02 <- log_solid_waste_kg ~ D_02 * t_02 + 
+                                             temp_c + humi_p + prcp_mm + 
+                                             liquors + sales + halfs +
+                                             tueE + wedE+ thuE+ friE+ satE+
+                                             I(t_02^2) + I(t_02^3)
+log_lfw_rdt_mult_cubic_02 <- log_liquid_waste_kg ~ D_02 * t_02 + 
+                                             temp_c + humi_p + prcp_mm + 
+                                             liquors + sales + halfs +
+                                             tueE + wedE+ thuE+ friE+ satE+
+                                             I(t_02^2) + I(t_02^3)
+# formulas: cutoff 3/01
+log_fw_rdt_mult_cubic_03 <- log_food_waste_kg ~ D_03 * t_03 + 
+                                             temp_c + humi_p + prcp_mm + 
+                                             liquors + sales + halfs +
+                                             tueE + wedE+ thuE+ friE+ satE+
+                                             I(t_03^2) + I(t_03^3)
+log_sfw_rdt_mult_cubic_03 <- log_solid_waste_kg ~ D_03 * t_03 + 
+                                             temp_c + humi_p + prcp_mm + 
+                                             liquors + sales + halfs +
+                                             tueE + wedE+ thuE+ friE+ satE+
+                                             I(t_03^2) + I(t_03^3)
+log_lfw_rdt_mult_cubic_03 <- log_liquid_waste_kg ~ D_03 * t_03 + 
+                                             temp_c + humi_p + prcp_mm + 
+                                             liquors + sales + halfs +
+                                             tueE + wedE+ thuE+ friE+ satE+
+                                             I(t_03^2) + I(t_03^3)
+
+
+# perform linear regression -------------
+plac_fw_d <- list(
+  "cutoff_1101" = lm(log_fw_rdt_mult_cubic_11, data = subset(df, !is_closed)),
+  "cutoff_1203" = lm(log_fw_rdt_mult_cubic_12, data = subset(df, !is_closed)),
+  "cutoff_0101" = lm(log_fw_rdt_mult_cubic,    data = subset(df, !is_closed)),
+  "cutoff_0201" = lm(log_fw_rdt_mult_cubic_02, data = subset(df, !is_closed)),
+  "cutoff_0301" = lm(log_fw_rdt_mult_cubic_03, data = subset(df, !is_closed))
+)
+plac_sfw_d <- list(
+  "cutoff_1101" = lm(log_sfw_rdt_mult_cubic_11, data = subset(df, !is_closed)),
+  "cutoff_1203" = lm(log_sfw_rdt_mult_cubic_12, data = subset(df, !is_closed)),
+  "cutoff_0101" = lm(log_sfw_rdt_mult_cubic,    data = subset(df, !is_closed)),
+  "cutoff_0201" = lm(log_sfw_rdt_mult_cubic_02, data = subset(df, !is_closed)),
+  "cutoff_0301" = lm(log_sfw_rdt_mult_cubic_03, data = subset(df, !is_closed))
+)
+plac_lfw_d <- list(
+  "cutoff_1101" = lm(log_lfw_rdt_mult_cubic_11, data = subset(df, !is_closed)),
+  "cutoff_1203" = lm(log_lfw_rdt_mult_cubic_12, data = subset(df, !is_closed)),
+  "cutoff_0101" = lm(log_lfw_rdt_mult_cubic,    data = subset(df, !is_closed)),
+  "cutoff_0201" = lm(log_lfw_rdt_mult_cubic_02, data = subset(df, !is_closed)),
+  "cutoff_0301" = lm(log_lfw_rdt_mult_cubic_03, data = subset(df, !is_closed))
+)
+
+cm_fw <- c('D_01'= 'D (fw)',
+          'D_11' = 'D (fw)',
+          'D_12' = 'D (fw)',
+          'D_02' = 'D (fw)',
+          'D_03' = 'D (fw)',
+          'D_11:t_11' = 'D × t (fw)',
+          'D_12:t_12' = 'D × t (fw)',
+          'D_01:t_01' = 'D × t (fw)',
+          'D_02:t_02' = 'D × t (fw)',
+          'D_03:t_03' = 'D × t (fw)')
+cm_sfw <- c('D_01' = 'D (solid)',
+          'D_11' = 'D (solid)',
+          'D_12' = 'D (solid)',
+          'D_02' = 'D (solid)',
+          'D_03' = 'D (solid)',
+          'D_11:t_11' = 'D × t (solid)',
+          'D_12:t_12' = 'D × t (solid)',
+          'D_01:t_01' = 'D × t (solid)',
+          'D_02:t_02' = 'D × t (solid)',
+          'D_03:t_03' = 'D × t (solid)')
+cm_lfw <- c('D_01' = 'D (liquid)',
+          'D_11' = 'D (liquid)',
+          'D_12' = 'D (liquid)',
+          'D_02' = 'D (liquid)',
+          'D_03' = 'D (liquid)',
+          'D_11:t_11' = 'D × t (liquid)',
+          'D_12:t_12' = 'D × t (liquid)',
+          'D_01:t_01' = 'D × t (liquid)',
+          'D_02:t_02' = 'D × t (liquid)',
+          'D_03:t_03' = 'D × t (liquid)')
+
+gm_d <- c("")
+summ_plac_fw_d <- modelsummary(plac_fw_d, 
+             estimate = "{estimate}{stars}",
+             statistic = c("s.e. = {std.error}"),
+             stars = c('*' = .05),
+             exponentiate = T,
+             coef_omit = 'Intercept',
+             coef_map =  cm_fw,
+             gof_map = gm_d)
+summ_plac_sfw_d <- modelsummary(plac_sfw_d, 
+             estimate = "{estimate}{stars}",
+             statistic = c("s.e. = {std.error}"),
+             stars = c('*' = .05),
+             coef_omit = 'Intercept',
+             exponentiate = TRUE,
+             coef_map =  cm_sfw,
+             gof_map = gm_d)
+summ_plac_lfw_d <- modelsummary(plac_lfw_d, 
+             estimate = "{estimate}{stars}",
+             statistic = c("s.e. = {std.error}"),
+             stars = c('*' = .05),
+             coef_omit = 'Intercept',
+             exponentiate = TRUE,
+             coef_map =  cm_lfw,
+             gof_map = gm_d)
+
+plac_plt_fw_d  <- modelplot(plac_fw_d, coef_map =  cm_fw)
+plac_plt_sfw_d <- modelplot(plac_sfw_d,coef_map =  cm_sfw)
+plac_plt_lfw_d <- modelplot(plac_lfw_d,coef_map =  cm_lfw)
+```
+
+
+
+## Donut hole test 
+### Food waste
+```{r food waste donuts_test}
+locals_donuts <- tibble(bandwidth = seq(from = 50, to = 10, by = -5))
+# Food waste -----
+# Donut test treatment
+results_local_int_donut_d <- locals_donuts %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth, 
+                      ~ lm(log_food_waste_kg ~ D_01 * t_01 + 
+                             temp_c + humi_p + prcp_mm + 
+                             liquors + sales + halfs + 
+                             tueE + wedE + thuE + friE + satE + 
+                             I(t_01^2) + I(t_01^3),
+                           data = subset(df, !is_closed), 
+                           subset = (abs(t_01) > bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "D_01")
+
+donut_d_fw <- results_local_int_donut_d %>% 
+  ggplot(aes(x = bandwidth, y = estimate,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point() +
+  geom_pointrange() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  scale_x_reverse() +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  xlab("Donut hole in day") + ylab("Estimated Effect") +
+  ggtitle("Donut Test on Food Waste")
+
+# Donut test interation
+results_local_int_donut_dt <- locals_donuts %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth, 
+                      ~ lm(log_food_waste_kg ~ D_01 * t_01 + 
+                             temp_c + humi_p + prcp_mm + 
+                             liquors + sales + halfs + 
+                             tueE + wedE + thuE + friE + satE + 
+                             I(t_01^2) + I(t_01^3),
+                           data = subset(df, is_closed == FALSE), 
+                           subset = (abs(t_01) > bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "D_01:t_01")
+
+donut_dt_fw <- results_local_int_donut_dt %>% 
+  ggplot(aes(x = bandwidth, y = estimate,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point() +
+  geom_pointrange() +
+  scale_x_reverse() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  xlab("Donut hole in day") + ylab("Estimated Effect") +
+  ggtitle("Donut Slope Test on Food Waste")
+```
+### Solid Food waste
+```{r solid food waste donuts_test}
+# Solid Food waste -----
+# Donut test treatment
+results_local_int_donut_d <- locals_donuts %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth, 
+                      ~ lm(log_solid_waste_kg ~ D_01 * t_01 + 
+                             temp_c + humi_p + prcp_mm + 
+                             liquors + sales + halfs + 
+                             tueE + wedE + thuE + friE + satE + 
+                             I(t_01^2) + I(t_01^3),
+                           data = subset(df, !is_closed), 
+                           subset = (abs(t_01) > bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "D_01")
+
+donut_d_sfw <- results_local_int_donut_d %>% 
+  ggplot(aes(x = bandwidth, y = estimate,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point(colour = "dark orange") +
+  geom_pointrange(colour = "dark orange") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  scale_x_reverse() +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  xlab("Donut hole in day") + ylab("Estimated Effect") +
+  ggtitle("Donut Test on Solid Food Waste")
+
+# Donut test interation
+results_local_int_donut_dt <- locals_donuts %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth, 
+                      ~ lm(log_solid_waste_kg ~ D_01 * t_01 + 
+                             temp_c + humi_p + prcp_mm + 
+                             liquors + sales + halfs + 
+                             tueE + wedE + thuE + friE + satE + 
+                             I(t_01^2) + I(t_01^3),
+                           data = subset(df, is_closed == FALSE), 
+                           subset = (abs(t_01) > bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "D_01:t_01")
+
+donut_dt_sfw <- results_local_int_donut_dt %>% 
+  ggplot(aes(x = bandwidth, y = estimate,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point(colour = "dark orange") +
+  geom_pointrange(colour = "dark orange") +
+  scale_x_reverse() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  xlab("Donut hole in day") + ylab("Estimated Effect") +
+  ggtitle("Donut Slope Test on Solid Food Waste")
+```
+
+### Liquid food waste
+```{r liquid food waste donuts_test}
+# Liquid Food waste -----
+# Donut test treatment
+results_local_int_donut_d <- locals_donuts %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth, 
+                      ~ lm(log_liquid_waste_kg ~ D_01 * t_01 + 
+                             temp_c + humi_p + prcp_mm + 
+                             liquors + sales + halfs + 
+                             tueE + wedE + thuE + friE + satE + 
+                             I(t_01^2) + I(t_01^3),
+                           data = subset(df, !is_closed), 
+                           subset = (abs(t_01) > bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "D_01")
+
+donut_d_lfw <- results_local_int_donut_d %>% 
+  ggplot(aes(x = bandwidth, y = estimate,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point(colour = "dark blue") +
+  geom_pointrange(colour = "dark blue") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  scale_x_reverse() +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  xlab("Donut hole in day") + ylab("Estimated Effect") +
+  ggtitle("Donut Test on Liquid Food Waste")
+
+# Donut test interation
+results_local_int_donut_dt <- locals_donuts %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth, 
+                      ~ lm(log_liquid_waste_kg ~ D_01 * t_01 + 
+                             temp_c + humi_p + prcp_mm + 
+                             liquors + sales + halfs + 
+                             tueE + wedE + thuE + friE + satE + 
+                             I(t_01^2) + I(t_01^3),
+                           data = subset(df, is_closed == FALSE), 
+                           subset = (abs(t_01) > bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "D_01:t_01")
+
+donut_dt_lfw <- results_local_int_donut_dt %>% 
+  ggplot(aes(x = bandwidth, y = estimate,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point(colour = "dark blue") +
+  geom_pointrange(colour = "dark blue") +
+  scale_x_reverse() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  xlab("Donut hole in day") + ylab("Estimated Effect") +
+  ggtitle("Donut Slope Test on Liquid Food Waste")
+```
+
+
+```{r eval = FALSE, echo = FALSE}
+# Donut Figures
+donut_d <- ggarrange(donut_d_fw,donut_dt_fw,
+                     donut_d_sfw,donut_dt_sfw,
+                     donut_d_lfw,donut_dt_lfw, 
+                      ncol=2, nrow=3, 
+                      common.legend = TRUE, legend="bottom")
+donut_d
+ggsave("donut_d.pdf",donut_d)
+unlink("donut_d.pdf")
+```
+
+## log-linear Multiple - month
+```{r log local regression multiple with time window}
+bandwidth = 25
+
+# Local Regression of container on food_waste_kg ----
+loc_fw_log <- df %>%
+  filter(!is_closed) %>% 
+  filter(abs(time) <= bandwidth) %>% 
+  lm(log_food_waste_kg ~ container*time
+     + temp_c + humi_p + prcp_mm + 
+       tueE + wedE+ thuE+ friE+ satE+
+       liquors + sales + halfs, 
+     data = .)
+summary(loc_fw_log)
+
+# Local Regression of container on solid food_waste_kg ----
+loc_sfw_log <- df %>%
+  filter(!is_closed) %>% 
+  filter(abs(time) <= bandwidth) %>% 
+  lm(log_solid_waste_kg ~ container*time
+     + temp_c + humi_p + prcp_mm + 
+       tueE + wedE+ thuE+ friE+ satE+
+       liquors + sales + halfs,
+     data = .)
+summary(loc_sfw_log)
+
+# Local Regression of container on liquid food_waste_kg----
+loc_lfw_log <- df %>%
+  filter(!is_closed) %>% 
+  filter(abs(time) <= bandwidth) %>% 
+  lm(log_liquid_waste_kg ~ container*time
+     + temp_c + humi_p + prcp_mm + tueE +
+       wedE+ thuE+ friE+ satE+
+       liquors + sales + halfs,
+     data = .)
+summary(loc_lfw_log)
+```
+
+## log-linear Multi - b/w week and month
+```{r log local regression multi wk_mth}
+# Visualization ----
+# Local regression with multiple
+locals <- tibble(bandwidth = seq(from = 8, to = 30, by = 1))
+results_local_multi_d <- locals %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth, 
+                      ~ lm(log_food_waste_kg ~ container * time 
+                                    + temp_c + humi_p + prcp_mm 
+                                    + tueE + wedE+ thuE+ friE+ satE
+                                    + liquors + sales + halfs,
+                                 data = subset(df, is_closed == FALSE), 
+                                 subset = (abs(time) <= bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "container")
+
+results_local_multi_dt <- locals %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth, 
+                      ~ lm(log_food_waste_kg ~ container * time 
+                                    + temp_c + humi_p + prcp_mm 
+                                    + tueE + wedE+ thuE+ friE+ satE
+                                    + liquors + sales + halfs,
+                                 data = subset(df, is_closed == FALSE), 
+                                 subset = (abs(time) <= bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "container:time")
+
+results_local_multi_d %>% 
+  ggplot(aes(x = bandwidth, y = estimate,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point() +
+  geom_pointrange() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  xlab("Band Width") + ylab("Estimated Effect") +
+  ggtitle("Estimated Container Charge Effect on Food Waste with Multiple Model")
+
+results_local_multi_dt %>% 
+  ggplot(aes(x = bandwidth, y = estimate,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point() +
+  geom_pointrange() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  xlab("Band Width") + ylab("Estimated Effect") +
+  ggtitle("Estimated Slope Change on Food Waste with Multiple Model")
+```
+
+```{r}
+# Donut regression with multiple
+results_local_multi_donut <- locals %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth, ~ lm(log_food_waste_kg ~ container * time 
+                                    + temp_c + humi_p + prcp_mm +
+                                      tueE + wedE+ thuE+ friE+ satE
+                                    + liquors + sales + halfs,
+                                 data = subset(df, is_closed == FALSE), 
+                                 subset = (abs(time) > bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "container")
+
+results_local_multi_donut %>% 
+  ggplot(aes(x = bandwidth, y = estimate,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point() +
+  geom_pointrange() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  xlab("Band Width") + ylab("Estimated Effect") +
+  ggtitle("Estimated Container Charge Donut Effect on Food Waste with Multiple Model")
+```
+
+## Quadratic - b/w week and month
+```{r log local regression poly wk_mth}
+# Visualization ----
+# Local regression with multiple
+locals <- tibble(bandwidth = seq(from = 9, to = 30, by = 1))
+results_local_poly_d <- locals %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth, 
+                      ~ lm(log_food_waste_kg ~ container * time 
+                                    + container * I(time^2)
+                                    + temp_c + humi_p + prcp_mm 
+                                    + tueE + wedE+ thuE+ friE+ satE
+                                    + liquors + sales + halfs,
+                                 data = subset(df, is_closed == FALSE), 
+                                 subset = (abs(time) <= bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "container")
+
+results_local_poly_dt <- locals %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth, 
+                      ~ lm(log_food_waste_kg ~ container * time 
+                                    + container * I(time^2)
+                                    + temp_c + humi_p + prcp_mm 
+                                    + tueE + wedE+ thuE+ friE+ satE
+                                    + liquors + sales + halfs,
+                                 data = subset(df, is_closed == FALSE), 
+                                 subset = (abs(time) <= bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "container:time")
+
+results_local_poly_d %>% 
+  ggplot(aes(x = bandwidth, y = estimate,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point() +
+  geom_pointrange() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  xlab("Band Width") + ylab("Estimated Effect") +
+  ggtitle("Estimated Container Charge Effect on Food Waste with Multiple Model")
+
+results_local_poly_dt %>% 
+  ggplot(aes(x = bandwidth, y = estimate,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point() +
+  geom_pointrange() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  xlab("Band Width") + ylab("Estimated Effect") +
+  ggtitle("Estimated Container Charge Effect on Food Waste with Multiple Model")
+```
+
+```{r}
+# Donut regression with multiple
+results_local_poly_donut <- locals %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth, ~ lm(log_food_waste_kg ~ container * time 
+                                    + temp_c + humi_p + prcp_mm +
+                                      tueE + wedE+ thuE+ friE+ satE
+                                    + liquors + sales + halfs,
+                                 data = subset(df, is_closed == FALSE), 
+                                 subset = (abs(time) > bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "container")
+
+results_local_poly_donut %>% 
+  ggplot(aes(x = bandwidth, y = estimate,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point() +
+  geom_pointrange() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  xlab("Band Width") + ylab("Estimated Effect") +
+  ggtitle("Estimated Container Charge Donut Effect on Food Waste with Multiple Model")
+```
+
+
+## Cubic - b/w week and month
+```{r log local regression cub wk_mth}
+# Visualization ----
+# Local regression with multiple
+locals <- tibble(bandwidth = seq(from = 10, to = 30, by = 1))
+results_local_poly_d <- locals %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth, 
+                      ~ lm(log_food_waste_kg ~ container * time 
+                                    + container * I(time^2) 
+                                    + container * I(time^3)
+                                    + temp_c + humi_p + prcp_mm 
+                                    + tueE + wedE+ thuE+ friE+ satE
+                                    + liquors + sales + halfs,
+                                 data = subset(df, is_closed == FALSE), 
+                                 subset = (abs(time) <= bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "container")
+
+results_local_poly_dt <- locals %>% 
+  group_by(bandwidth) %>% 
+  mutate(
+    loc_reg_log = map(bandwidth, 
+                      ~ lm(log_food_waste_kg ~ container * time 
+                                    + container * I(time^2)
+                                    + container * I(time^3)
+                                    + temp_c + humi_p + prcp_mm 
+                                    + tueE + wedE+ thuE+ friE+ satE
+                                    + liquors + sales + halfs,
+                                 data = subset(df, is_closed == FALSE), 
+                                 subset = (abs(time) <= bandwidth))),
+    tidied = map(loc_reg_log,tidy,conf.int = TRUE)
+  ) %>% 
+  unnest(tidied) %>% 
+  filter(term == "container:time")
+
+results_local_poly_d %>% 
+  ggplot(aes(x = bandwidth, y = estimate,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point() +
+  geom_pointrange() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  xlab("Band Width") + ylab("Estimated Effect") +
+  ggtitle("Estimated Container Charge Effect on Food Waste with Multiple Model")
+
+results_local_poly_dt %>% 
+  ggplot(aes(x = bandwidth, y = estimate,
+             ymin = conf.low, ymax = conf.high)) +
+  geom_point() +
+  geom_pointrange() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  xlab("Band Width") + ylab("Estimated Effect") +
+  ggtitle("Estimated Container Charge Effect on Food Waste with Multiple Model")
+```
