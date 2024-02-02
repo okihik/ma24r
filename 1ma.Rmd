@@ -1,0 +1,1272 @@
+---
+title: "Univariate - MA Data Analysis"
+author: "Akihiko Mori"
+output: 
+  rmdformats::readthedown:
+  # pdf_document:
+  # html_document:
+    # toc: true
+    # theme: united
+    # code_folding: hide
+---
+
+
+```{r setup, include = FALSE}
+## setup for r codes included
+knitr::opts_chunk$set(echo=FALSE)
+knitr::opts_chunk$set(fig.show="hold", out.width="50%") 
+```
+
+```{r packages, echo=FALSE,message = FALSE, warning=FALSE}
+## Library ---
+library(bayesforecast)
+library(dplyr)
+library(forecast)
+library(ggplot2) # ggplot
+library(ggpubr)
+library(gridExtra) # grid.arrange function
+library(lubridate) # wday function
+library(rstatix)
+library(stargazer)
+library(tidyverse)
+library(fpp3, seasonal)
+
+library(tables)
+library(modelsummary)
+```
+
+
+```{r data import, echo=FALSE,message = FALSE, warning=FALSE}
+## Import Data from file ---
+rm(df)
+dataPass = "/Users/am/Library/CloudStorage/OneDrive-UNBC/00MAthesis/ma24r/ma24data"
+df <- read_csv(dataPass)
+df$day <- factor(df$day, levels = c("Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
+rm(dataPass)
+```
+
+<!-- ### Check imported data -->
+<!-- ```{r check data} -->
+<!-- head(df) -->
+<!-- str(df) -->
+<!-- names(df) -->
+<!-- ``` -->
+
+# Univariable ---
+## Open days
+```{r open days}
+# sample size: open and close days ---------------------------------------
+data.frame(obs_days    = nrow(df),
+           open_days   = sum(df$is_closed),
+           closed_days = sum(!df$is_closed))
+df %>% 
+  freq_table(is_closed)
+
+df <- as.data.frame(df)
+
+datasummary(is_closed + 1 ~ N + Percent(), 
+            data = df, type = "logical")
+
+datasummary(food_waste_kg + solid_waste_kg + liquid_waste_kg ~ Mean  + Min + Median + Max + SD
+  ,data = df, output = "latex")
+
+library(parameters)
+skewness(df$food_waste_kg,type = 1)
+skewness(df$solid_waste_kg,type = 1)
+skewness(df$liquid_waste_kg,type = 1)
+# Skewness
+# Symmetric distributions have a skewness around zero, while a negative skewness values indicates a "left-skewed" distribution, and a positive skewness values indicates a "right-skewed" distribution. Examples for the relationship of skewness and distributions are:
+# 
+# Normal distribution (and other symmetric distribution) has a skewness of 0
+# 
+# Half-normal distribution has a skewness just below 1
+# 
+# Exponential distribution has a skewness of 2
+# 
+# Lognormal distribution can have a skewness of any positive value, depending on its parameters
+# 
+# (https://en.wikipedia.org/wiki/Skewness)
+# Types of Skewness
+# skewness() supports three different methods for estimating skewness, as discussed in Joanes and Gill (1988):
+# 
+# Type "1" is the "classical" method, which is g1 = (sum((x - mean(x))^3) / n) / (sum((x - mean(x))^2) / n)^1.5
+# 
+# Type "2" first calculates the type-1 skewness, than adjusts the result: G1 = g1 * sqrt(n * (n - 1)) / (n - 2). This is what SAS and SPSS usually return
+# 
+# Type "3" first calculates the type-1 skewness, than adjusts the result: b1 = g1 * ((1 - 1 / n))^1.5. This is what Minitab usually returns.
+
+# df %>% 
+#   select(c(date, day, is_closed))%>%
+#   subset(is_closed == TRUE)
+  
+```
+
+
+## Basic Summary of Dependent Variables
+```{r basic summary}
+# basic summary: dependents ----------------------------------------------------
+# data.frame(food_loss_waste   = c(summary(df$food_loss_kg + df$food_waste_kg)),
+#            food_loss         = c(summary(df$food_loss_kg)),
+#            food_waste_all    = c(summary(df$food_waste_kg)),
+#            food_waste_liquid = c(summary(df$liquid_waste_kg)),
+#            food_waste_solid  = c(summary(df$solid_waste_kg)))
+# df %>% 
+#   select(c(food_loss_kg,food_waste_kg,liquid_waste_kg,solid_waste_kg)) %>% 
+#   get_summary_stats()
+
+# library(summarytools)
+# df %>%
+#   select(c(food_loss_kg,food_waste_kg,
+#            liquid_waste_kg,solid_waste_kg)) %>% 
+#   descr(order = "preserve",
+#         stats = c('mean', 'sd', 'min', 'q1', 'med', 'q3', 'max'),
+#         round.digits = 6)
+
+# basic summary: dependents excluding closed days ------------------------------
+# data.frame(food_loss_waste   = c(summary(df$food_loss_kg[!df$is_closed] 
+#                                          + df$food_waste_kg[!df$is_closed])),
+#            food_loss         = c(summary(df$food_loss_kg[!df$is_closed])),
+#            food_waste_all    = c(summary(df$food_waste_kg[!df$is_closed])),
+#            food_waste_liquid = c(summary(df$liquid_waste_kg[!df$is_closed])),
+#            food_waste_solid  = c(summary(df$solid_waste_kg[!df$is_closed])))
+df %>% 
+  filter(is_closed == FALSE) %>%
+  rstatix::select(c(food_loss_kg,food_waste_kg,liquid_waste_kg,solid_waste_kg)) %>% 
+  get_summary_stats()
+# library(stargazer)
+# df_fw <- as.data.frame(subset(df, is_closed==FALSE, 
+#                  select = c("food_loss_kg","food_waste_kg",
+#                             "liquid_waste_kg","solid_waste_kg")))
+# stargazer(df_fw, type = "latex")
+```
+
+
+```{r stargazer dependents}
+# summary of--------------------
+# 1. number of observations
+# 2. Averages
+# 3. standard deviations
+# 4. Min values
+# 4. Max values
+# stargazer(subset(df[4:7], df$is_closed == FALSE),  flip=TRUE,
+#           type = "text",digits=2, out="deps1.txt")
+# 
+# # Excluding the restaurant closed ---------------
+# stargazer(subset(df[4:7], df$is_closed == FALSE),  flip=TRUE,
+#           type = "text",digits=2, out="deps2.txt")
+```
+
+
+# Histograms ---
+<!-- ## X Normal histogram -->
+<!-- ```{r normal histogram} -->
+<!-- # Create a data frame of numeric features & label -->
+<!-- dep_features <- df %>%  -->
+<!--   rstatix::select(c(is_closed, food_loss_kg, food_waste_kg,  -->
+<!--            solid_waste_kg, liquid_waste_kg)) -->
+
+<!-- # Pivot data to a long format -->
+<!-- dep_features <- dep_features %>%  -->
+<!--   pivot_longer(!is_closed, names_to = "features",  -->
+<!--                values_to = "values") %>% -->
+<!--   group_by(features) %>%  -->
+<!--   mutate(Mean = mean(values), -->
+<!--          Median = median(values)) -->
+
+
+<!-- # Plot a histogram for each feature -->
+<!-- dep_features %>% -->
+<!--   ggplot() + -->
+<!--   geom_histogram(aes(x = values, fill = features),  -->
+<!--                  bins = 100, alpha = 0.7, show.legend = F) + -->
+<!--   facet_wrap(~ features, scales = 'free')+ -->
+<!--   paletteer::scale_fill_paletteer_d("ggthemes::excel_Parallax") + -->
+<!--   # Add lines for mean and median -->
+<!--   geom_vline(aes(xintercept = Mean, color = "Mean"),  -->
+<!--              linetype = "dashed", linewidth = 1 ) + -->
+<!--   geom_vline(aes(xintercept = Median, color = "Median"),  -->
+<!--              linetype = "dashed", linewidth = 1 ) + -->
+<!--   scale_color_manual(name = "",  -->
+<!--                      values = c(Mean = "red", Median = "yellow"))  -->
+<!-- ``` -->
+
+## X Histogram with density
+```{r histograms}
+# binwidth = bw
+# bw <- 2 * IQR(df$food_loss_kg) / length(df$food_loss_kg)^(1/3)
+# Histogram on food loss + food waste ------------------------------------------
+hist_loss_waste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x = food_loss_kg + food_waste_kg)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30, colour = 1, fill = "white") +
+  geom_density(linewidth = 1.5, colour = 4, fill = 4, alpha = 0.15) +
+  labs(title = "Food Loss and Food Waste - Histogram")
+hist_loss_waste
+
+# Histogram on food loss----------------------------------------------------
+hist_loss <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), aes(x = food_loss_kg)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30, colour = 1, fill = "white") +
+  geom_density(linewidth = 1.5, colour = 4, fill = 4, alpha = 0.15) +
+  labs(title = "Food Loss - Histogram")
+hist_loss
+
+# Histogram of food waste ----------------------------------------------------
+hist_food_waste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x = food_waste_kg)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30, colour = "black", fill = "white") +
+  geom_density(linewidth = 1.5, colour = "black", 
+               fill = 4, alpha = 0.15) +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  labs(title = "Food Waste - Histogram")
+hist_food_waste
+
+# Histogram of solid waste ----------------------------------------------------
+hist_solid_waste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), aes(x = solid_waste_kg)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30,colour = "orange", fill = "white") +
+  geom_density(linewidth = 1.5, colour = "orange", 
+               fill = 4, alpha = 0.15) +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  labs(title = "Solid Food Waste - Histogram")
+hist_solid_waste
+
+# Histogram of liquid waste ----------------------------------------------------
+hist_liquid_waste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), aes(x = liquid_waste_kg)) +
+  geom_histogram(aes(y = after_stat(density)),
+                 bins = 30,colour = "dark blue", fill = "white") +
+  geom_density(linewidth = 1.5, colour = "dark blue", 
+               fill = 4, alpha = 0.15) +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  labs(title = "Liquid Food Waste - Histogram")
+hist_liquid_waste
+
+hist_fws <- ggarrange(hist_food_waste,
+                     hist_solid_waste,
+                     hist_liquid_waste,
+                     ncol=2, nrow=2)
+hist_fws
+ggsave("hist_fws.pdf",hist_fws)
+unlink("food_waste_tsplot.pdf")
+```
+#### Q-Q plot
+```{r QQ plot dep vars.}
+# Food loss ------------
+
+# Food waste ------------
+qq_fw <- ggqqplot(subset(df$food_waste_kg, 
+                         df$is_closed %in% FALSE)) +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("Food Waste in kg")
+
+# Solid Food waste ------------
+qq_sfw <- ggqqplot(subset(df$solid_waste_kg, 
+                          df$is_closed %in% FALSE)) +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("Solid Food Waste in kg")
+
+# Liquid Food waste ------------
+qq_lfw <- ggqqplot(subset(df$liquid_waste_kg, 
+                          df$is_closed %in% FALSE)) +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("Liquid Food Waste in kg")
+
+qq_fws <- ggarrange(qq_fw,qq_sfw,qq_lfw,
+                    ncol=2, nrow=2)
+qq_fws
+ggsave("qq_fws.pdf",qq_fws)
+unlink("food_waste_tsplot.pdf")
+```
+
+## X shapiro test
+```{r}
+# Food waste ------------
+df %>% 
+  filter(is_closed == FALSE) %>%
+  shapiro_test(food_waste_kg, solid_waste_kg, liquid_waste_kg)
+```
+From the output, all the p-value is far less than 0.05; so implying that the distribution of the data are significantly different from normal distribution. In other words, we can not assume the normality.
+
+## Histogram Food Waste per customer
+```{r histograms_customer}
+# Histogram of food waste -------------------------------------------
+hist_food_waste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x = food_waste_kg/customers)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30,colour = 1, fill = "white") +
+  geom_density(linewidth = 1.5, colour = 4, fill = 4, alpha = 0.15) +
+  labs(title = "Food Waste per Customer - Histogram")
+hist_food_waste
+
+# Histogram of solid waste --------------------------------------------
+hist_solid_waste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE),
+         aes(x = solid_waste_kg/customers)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30,colour = 1, fill = "white") +
+  geom_density(linewidth = 1.5, colour = 4, fill = 4, alpha = 0.15) +
+  labs(title = "Solid Food Waste per Customer - Histogram")
+hist_solid_waste
+
+# Histogram of liquid waste ----------------------------------------
+hist_liquid_waste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x = liquid_waste_kg/customers)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30,colour = 1, fill = "white") +
+  geom_density(linewidth = 1.5, colour = 4, fill = 4, alpha = 0.15) +
+  labs(title = "Liquid Food Waste per Customer - Histogram")
+hist_liquid_waste
+
+# grid.arrange(hist_loss_waste,hist_loss,
+#              hist_food_waste,hist_solid_waste,hist_liquid_waste)
+```
+
+
+\newpage
+## Q-Q plot Food Waste per customer
+```{r QQ plot dep vars.per customer}
+# Food waste ------------
+ggqqplot(subset(df$food_waste_kg/df$customers, 
+                df$is_closed %in% FALSE)) +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Food Waste per Customer in kg")
+
+# Solid Food waste ------------
+ggqqplot(subset(df$solid_waste_kg/df$customers, 
+                df$is_closed %in% FALSE)) +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Solid Food Waste per Customer in kg")
+
+# Liquid Food waste ------------
+ggqqplot(subset(df$liquid_waste_kg/df$customers, 
+                df$is_closed %in% FALSE)) +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Liquid Food Waste per Customer in kg")
+```
+
+## shapiro test for per customer
+```{r}
+# Food waste ------------
+df %>% 
+  filter(is_closed == FALSE) %>%
+  mutate(food_waste_p_kg   = food_waste_kg/customers,
+         solid_waste_p_kg  = solid_waste_kg/customers,
+         liquid_waste_p_kg = liquid_waste_kg/customers) %>%
+  shapiro_test(food_waste_p_kg, solid_waste_p_kg, liquid_waste_p_kg) 
+```
+
+From the output, the p-value of solid food waste per customer is far less that the significant level of 0.05; but the others are not. So it imply that the distribution of the data for solid food waste per customer is significantly different from normal distribution. 
+In other words, we can assume the normality for food waste and liquid food waste per customer but not for solid food waste.
+
+
+<!-- ## X Histogram per customer w/o outlier -->
+<!-- ```{r histograms_customer w/o outlier} -->
+<!-- # find outliers ---- -->
+<!-- # food waste ----- -->
+<!-- which(df$food_waste_kg/df$customers > 0.2)  # => 46 -->
+<!-- which(df$solid_waste_kg/df$customers > 0.1) # => 46 -->
+<!-- df[46,]$date -->
+<!-- # outlier is 46; 2022-11-08 -->
+
+<!-- # Histogram of food waste ------------------------------------------- -->
+<!-- hist_food_waste <-  -->
+<!--   df %>%  -->
+<!--   filter(is_closed %in% FALSE) %>% -->
+<!--   filter(!row_number() %in% c(45)) %>% -->
+<!--   ggplot(aes(x = food_waste_kg/customers)) + -->
+<!--   geom_histogram(aes(y = after_stat(density)),  -->
+<!--                  bins = 30,colour = 1, fill = "white") + -->
+<!--   geom_density(linewidth = 1.5, colour = 4, fill = 4, alpha = 0.15) + -->
+<!--   labs(title = "Food Waste - Histogram") -->
+<!-- hist_food_waste -->
+
+<!-- # Histogram of solid waste -------------------------------------------- -->
+<!-- hist_solid_waste <-  -->
+<!--   df %>%  -->
+<!--   filter(is_closed %in% FALSE) %>% -->
+<!--   filter(!row_number() %in% c(45)) %>% -->
+<!--   ggplot(aes(x = solid_waste_kg/customers)) + -->
+<!--   geom_histogram(aes(y = after_stat(density)),  -->
+<!--                  bins = 30,colour = 1, fill = "white") + -->
+<!--   geom_density(linewidth = 1.5, colour = 4, fill = 4, alpha = 0.15) + -->
+<!--   labs(title = "Solid Food Waste - Histogram") -->
+<!-- hist_solid_waste -->
+
+<!-- # Histogram of liquid waste ---------------------------------------- -->
+<!-- hist_liquid_waste <-  -->
+<!--   df %>%  -->
+<!--   filter(is_closed %in% FALSE) %>% -->
+<!--   filter(!row_number() %in% c(45)) %>% -->
+<!--   ggplot(aes(x = liquid_waste_kg/customers)) + -->
+<!--   geom_histogram(aes(y = after_stat(density)),  -->
+<!--                  bins = 30,colour = 1, fill = "white") + -->
+<!--   geom_density(linewidth = 1.5, colour = 4, fill = 4, alpha = 0.15) + -->
+<!--   labs(title = "Liquid Food Waste - Histogram") -->
+<!-- hist_liquid_waste -->
+
+<!-- grid.arrange(hist_food_waste,hist_solid_waste, -->
+<!--              hist_liquid_waste) -->
+<!-- ``` -->
+
+
+
+<!-- ## Q-Q plot per capita w/o outlier -->
+<!-- ```{r QQ plot dep vars.per customer w/o outlier} -->
+<!-- library(qqplotr) -->
+<!-- # Food waste ------------ -->
+<!-- # df %>%  -->
+<!-- #   filter(is_closed == FALSE) %>% -->
+<!-- #   filter(!row_number() %in% c(45)) %>% -->
+<!-- #   ggplot(aes(sample = liquid_waste_kg/customers)) + -->
+<!-- #   stat_qq() + stat_qq_line() + -->
+<!-- ggqqplot(subset(df[-46,]$food_waste_kg/df[-46,]$customers,  -->
+<!--                 df[-46,]$is_closed %in% FALSE)) + -->
+<!--   xlab("theoretical") + ylab("sample") + -->
+<!--   ggtitle("QQ plot of Food Waste per Customer in kg") -->
+
+<!-- # Solid Food waste ------------ -->
+<!-- ggqqplot(subset(df[-46,]$solid_waste_kg/df[-46,]$customers,  -->
+<!--                 df[-46,]$is_closed %in% FALSE)) + -->
+<!--   xlab("theoretical") + ylab("sample") + -->
+<!--   ggtitle("QQ plot of Solid Food Waste per Customer in kg") -->
+
+<!-- # Liquid Food waste ------------ -->
+<!-- ggqqplot(subset(df[-46,]$liquid_waste_kg/df[-46,]$customers,  -->
+<!--                 df[-46,]$is_closed %in% FALSE)) + -->
+<!--   xlab("theoretical") + ylab("sample") + -->
+<!--   ggtitle("QQ plot of Liquid Food Waste per Customer in kg") -->
+<!-- ``` -->
+
+<!-- ## shapiro test for per capita w/o outlier -->
+<!-- ```{r} -->
+<!-- # Food waste ------------ -->
+<!-- df %>%  -->
+<!--   filter(is_closed %in% FALSE) %>% -->
+<!--   filter(!row_number() == 45) %>% -->
+<!--   mutate(food_waste_p_kg   = food_waste_kg/customers, -->
+<!--          solid_waste_p_kg  = solid_waste_kg/customers, -->
+<!--          liquid_waste_p_kg = liquid_waste_kg/customers) %>% -->
+<!--   shapiro_test(food_waste_p_kg, solid_waste_p_kg, liquid_waste_p_kg) -->
+<!-- ``` -->
+
+<!-- From the output, the p-value of solid food waste per customer is far less that the significant level of 0.05; but the others are not. So it imply that the distribution of the data for solid food waste per customer is significantly different from normal distribution.  -->
+<!-- In other words, we can assume the normality for food waste and liquid food waste per customer but not for solid food waste. -->
+
+<!-- ## Histogram weekdays_ends -->
+<!-- ```{r histograms_customer_weekend} -->
+<!-- # Histogram of food waste ------------------------------------------- -->
+<!-- hist_food_waste_wk <-  -->
+<!--   ggplot(data = subset(df, is_closed %in% FALSE),  -->
+<!--          aes(x = food_waste_kg/customers,  -->
+<!--              colour = factor(week_end))) + -->
+<!--   geom_histogram(aes(y = after_stat(density) ),  -->
+<!--                  fill = "white", bins = 30) + -->
+<!--   geom_density(linewidth = 1, fill = 4, alpha = 0.15) + -->
+<!--   labs(title = "Food Waste - Histogram") -->
+<!-- hist_food_waste_wk -->
+
+<!-- # Histogram of solid waste -------------------------------------------- -->
+<!-- hist_solid_waste_wk <-  -->
+<!--   ggplot(data = subset(df, is_closed %in% FALSE), -->
+<!--          aes(x = solid_waste_kg/customers, -->
+<!--              colour = factor(week_end))) + -->
+<!--   geom_histogram(aes(y = after_stat(density)),  -->
+<!--                  bins = 30, fill = "white") + -->
+<!--   geom_density(linewidth = 1, fill = 4, alpha = 0.15) + -->
+<!--   labs(title = "Solid Food Waste - Histogram") -->
+<!-- hist_solid_waste_wk -->
+
+<!-- # Histogram of liquid waste ---------------------------------------- -->
+<!-- hist_liquid_waste_wk <-  -->
+<!--   ggplot(data = subset(df, is_closed %in% FALSE),  -->
+<!--          aes(x = liquid_waste_kg/customers,  -->
+<!--              colour = factor(week_end))) + -->
+<!--   geom_histogram(aes(y = after_stat(density)),  -->
+<!--                  bins = 30, fill = "white") + -->
+<!--   geom_density(linewidth = 1, fill = 4, alpha = 0.15) + -->
+<!--   labs(title = "Liquid Food Waste - Histogram") -->
+<!-- hist_liquid_waste_wk -->
+
+<!-- grid.arrange(hist_food_waste_wk, -->
+<!--              hist_solid_waste_wk, -->
+<!--              hist_liquid_waste_wk) -->
+<!-- ``` -->
+
+## Histogram log Food Waste
+```{r histograms_log}
+# Histogram of food waste -------------------------------------------
+hist_log_food_waste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x = log(food_waste_kg+1))) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30,colour = 1, fill = "white") +
+  geom_density(linewidth = 1.5, colour = 4, fill = 4, alpha = 0.15) +
+  labs(title = "Log Food Waste - Histogram")
+hist_log_food_waste
+
+# Histogram of solid waste --------------------------------------------
+hist_log_solid_waste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE),
+         aes(x = log(solid_waste_kg+1))) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30,colour = "orange", fill = "white") +
+  geom_density(linewidth = 1.5, colour = "orange", fill = 4, alpha = 0.15) +
+  labs(title = "Log Solid Food Waste - Histogram")
+hist_log_solid_waste
+
+# Histogram of liquid waste ----------------------------------------
+hist_log_liquid_waste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x = log(liquid_waste_kg+1))) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30,colour = "dark blue", fill = "white") +
+  geom_density(linewidth = 1.5, colour = "dark blue", fill = 4, alpha = 0.15) +
+  labs(title = "Log Liquid Food Waste - Histogram")
+hist_log_liquid_waste
+
+hist_log_fws <- ggarrange(hist_log_food_waste,
+                          hist_log_solid_waste,
+                          hist_log_liquid_waste,
+                          ncol=2, nrow=2)
+hist_log_fws
+ggsave("hist_log_fws.pdf",hist_log_fws)
+unlink("hist_log_fws.pdf")
+```
+
+
+\newpage
+## Q-Q plot log Food Waste
+```{r QQ plot logged dep vars }
+# Food waste ------------
+qq_log_fw <- ggqqplot(subset(log(df$food_waste_kg+1), 
+                df$is_closed %in% FALSE)) +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of log Food Waste in kg")
+
+# Solid Food waste ------------
+qq_log_sfw <- ggqqplot(subset(log(df$solid_waste_kg+1), 
+                df$is_closed %in% FALSE)) +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Log Solid Food Waste in kg")
+
+# Liquid Food waste ------------
+qq_log_lfw <- ggqqplot(subset(log(df$liquid_waste_kg+1), 
+                df$is_closed %in% FALSE)) +
+  xlab("theoretical") + ylab("sample") +
+  ggtitle("QQ plot of Log Liquid Food Waste in kg")
+
+qq_log_fws <- ggarrange(qq_log_fw,qq_log_sfw,qq_log_lfw,
+                    ncol=2, nrow=2)
+qq_log_fws
+ggsave("qq_log_fws.pdf",qq_log_fws)
+unlink("qq_log_fws.pdf")
+```
+
+## shapiro test for log food waste
+```{r}
+# Food waste ------------
+df %>% 
+  filter(is_closed == FALSE) %>%
+  mutate(log_food_waste_kg   = log(food_waste_kg+1),
+         log_solid_waste_kg  = log(solid_waste_kg+1),
+         log_liquid_waste_kg = log(liquid_waste_kg+1)) %>%
+  shapiro_test(log_food_waste_kg, log_solid_waste_kg, log_liquid_waste_kg)
+```
+
+# Time Series Plots ---
+## Daily Time Series
+```{r add month_day_name, echo=FALSE}
+# add month_name (September, ..., March) to data frame -------------------------
+df <- df %>% 
+  mutate(month_name = format(as.Date(df$date), format = "%b")) %>%
+  mutate(month_name = factor(month_name, levels = c('Sep','Oct','Nov','Dec',
+                                                    'Jan','Feb','Mar')))
+# add day_name (1, ..., 30,31) to data frame -----------------------------------
+df <- df %>% 
+  mutate(day_name = format(as.Date(df$date), format = "%d"))
+```
+
+
+```{r plot daily}
+# df[,"is_closed"] <- ifelse(df$is_closed %in% FALSE, "opne", "close")
+
+# Daily Plot on food loss + food waste ---------------------------------
+# daily_loss_waste <- 
+#   ggplot(data = df, aes(x = as.Date(date), 
+#                         y = food_loss_kg + food_waste_kg)) +
+#   geom_line(aes(group = 1), color="dark blue") +
+#   geom_point(aes(shape = is_closed)) +
+#   scale_shape_manual(values=c(16, 4)) +
+#   scale_x_date(date_labels = "%b %d") +
+#   theme(legend.position = c(0.05,0.15)) +
+#   xlab("Date") + ylab("Daily Food Loss and Waste (kg)") +
+#   ggtitle("Daily Food Loss and Waste Trend")
+# daily_loss_waste
+
+# Daily Plot on food loss ------------------------------------------------
+# daily_loss <- 
+#   ggplot(data = df, aes(x = as.Date(date), y = food_loss_kg)) +
+#   geom_line(color="blue") +
+#   geom_point(aes(shape = is_closed)) +
+#   scale_x_date(date_labels = "%b %d") +
+#   scale_shape_manual(values=c(16, 4))+
+#   theme(legend.position = c(0.9,0.85)) +
+#   xlab("Date") + ylab("Daily Food Loss (kg)") +
+#   ggtitle("Daily Food Loss Trend")
+# daily_loss
+library(ggpubr)
+
+# Daily Plot on food waste -----------------------------------------------
+daily_waste <- 
+  ggplot(data = df, aes(x = as.Date(date), y = food_waste_kg)) +
+  geom_line(color="black") +
+  geom_point(aes(shape = is_closed)) +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE,
+              linetype = "dashed",color="black") +
+  scale_x_date(date_labels = "%b %d") +
+  scale_shape_manual(values=c(4,16))+
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        legend.position = "none") +
+  xlab("Date") + ylab("Daily Food Waste (kg)")
+  # ggtitle("Daily Food Waste Trend")
+daily_waste
+# ggsave("daily_waste.pdf")
+# unlink("daily_waste.pdf")
+
+# Daily Plot on solid food waste -----------------------------------------
+daily_solid_waste <- 
+  ggplot(data = df, aes(x = as.Date(date), y = solid_waste_kg)) +
+  geom_line(color="dark orange") +
+  geom_point(aes(shape = is_closed)) +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE,
+              linetype = "dashed",color="black") +
+  scale_x_date(date_labels = "%b %d") +
+  scale_shape_manual(values=c(4,16))+
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        legend.position = "none") +
+  xlab("Date") + ylab("Daily Solid Food Waste (kg)") 
+  # ggtitle("Daily Solid Food Waste Trend")
+daily_solid_waste
+# ggsave("daily_solid_waste.pdf")
+# unlink("daily_solid_waste.pdf")
+
+# Daily Plot on liquid food waste ----------------------------------------
+daily_liquid_waste <- 
+  ggplot(data = df, aes(x = as.Date(date), y = liquid_waste_kg)) +
+  geom_line(color="dark blue") +
+  # geom_line(color="blue", linetype = "dashed") +
+  geom_point(aes(shape = is_closed)) +
+   geom_smooth(method = "lm", formula = y ~ x, se = FALSE,
+               linetype = "dashed",color="black") +
+  scale_x_date(date_labels = "%b %d") +
+  scale_shape_manual(values=c(4,16))+
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        legend.position = "none") +
+  xlab("Date") + ylab("Daily Liquid ood Waste (kg)")
+  # ggtitle("Daily Liquid Food Waste Trend")
+daily_liquid_waste
+# ggsave("daily_liquid_waste.pdf")
+# unlink("daily_liquid_waste.pdf")
+
+food_waste_tsplot <-
+  ggarrange(daily_waste,
+               daily_solid_waste,
+               daily_liquid_waste, 
+            ncol=1, nrow=3, common.legend = TRUE, legend="bottom")
+food_waste_tsplot
+ggsave("food_waste_tsplot.pdf",food_waste_tsplot)
+unlink("food_waste_tsplot.pdf")
+
+df[,"is_closed"] <- ifelse(df$is_closed %in% "open", FALSE, TRUE)
+```
+
+## Daily plot per customer
+```{r plot daily_p}
+# Daily Plot on food waste -----------------------------------------------
+daily_waste_p <- 
+  ggplot(data = subset(df, is_closed == FALSE),
+         aes(x = as.Date(date), y = food_waste_kg/customers)) +
+  geom_line(color="black") +
+  geom_point(aes(shape = is_closed)) +
+  geom_smooth(method = "loess", formula = y ~ x) +
+  scale_x_date(date_labels = "%b %d") +
+  scale_shape_manual(values=c(16, 4))+
+  theme(legend.position = c(0.8,0.85)) +
+  xlab("Date") + ylab("Daily Food Waste per Customer (kg)") +
+  ggtitle("Daily Food Waste per Customer Trend")
+daily_waste_p
+
+# Daily Plot on solid food waste -----------------------------------------
+daily_solid_waste_p <- 
+  ggplot(data = subset(df, is_closed == FALSE),
+         aes(x = as.Date(date), y = solid_waste_kg/customers)) +
+  geom_line(color="dark orange") +
+  geom_point(aes(shape = is_closed)) +
+  geom_smooth(method = "loess", formula = y ~ x) +
+  scale_x_date(date_labels = "%b %d") +
+  scale_shape_manual(values=c(16, 4))+
+  theme(legend.position = c(0.8,0.85)) +
+  xlab("Date") + ylab("Daily Solid Food Waste per Customer (kg)") +
+  ggtitle("Daily Solid Food Waste per Customer Trend")
+daily_solid_waste_p
+
+# Daily Plot on liquid food waste ----------------------------------------
+daily_liquid_waste_p <- 
+  ggplot(data = subset(df, is_closed == FALSE),
+         aes(x = as.Date(date), y = liquid_waste_kg/customers)) +
+  geom_line(color="dark blue") +
+  geom_line(color="blue", linetype = "dashed") +
+  geom_point(aes(shape = is_closed)) +
+   geom_smooth(method = "loess", formula = y ~ x) +
+  scale_x_date(date_labels = "%b %d") +
+  scale_shape_manual(values=c(16, 4))+
+  theme(legend.position = c(0.8,0.85)) +
+  xlab("Date") + ylab("Daily Liquid ood Waste per Customer (kg)") +
+  ggtitle("Daily Liquid Food Waste per Customer Trend")
+daily_liquid_waste_p
+```
+
+
+\newpage
+## Decompsiotion
+```{r decomposition}
+df %>%
+  as_tsibble(index = date) %>%
+  rstatix::select(food_waste_kg) %>%
+  fill_gaps(food_waste_kg = 0) %>%
+  model(STL(food_waste_kg)) |>
+  components() |>
+  autoplot()
+
+auto.arima(df$food_waste_kg, trace = TRUE)
+auto.arima(df$solid_waste_kg, trace = TRUE)
+auto.arima(df$liquid_waste_kg, trace = TRUE)
+# 
+# auto.arima(df[1:92,]$food_waste_kg, trace = TRUE)
+# auto.arima(df[1:92,]$solid_waste_kg, trace = TRUE)
+# auto.arima(df[1:92,]$liquid_waste_kg, trace = TRUE)
+# 
+# auto.arima(df[93:169,]$food_waste_kg, trace = TRUE)
+# auto.arima(df[93:169,]$solid_waste_kg, trace = TRUE)
+# auto.arima(df[93:169,]$liquid_waste_kg, trace = TRUE)
+```
+
+
+<!-- \newpage -->
+<!-- ```{r plot monthly} -->
+<!-- # Monthly Plot on food loss and food waste --------------------------------- -->
+<!-- monthly_loss_waste <-  -->
+<!--   ggplot(data = df, aes(x = day_name,  -->
+<!--                         y = food_loss_kg + food_waste_kg, group=1)) + -->
+<!--   geom_line(color="dark blue") + -->
+<!--   geom_point(aes(shape = is_closed)) + -->
+<!--   scale_shape_manual(values=c(16, 4)) + -->
+<!--   theme(legend.position = "none") + -->
+<!--   # geom_rect(data = df, aes(xmin = date, xmax = dplyr::lead(date), -->
+<!--   #                          ymin = -Inf, ymax = Inf, -->
+<!--   #                          fill = factor(!is_closed)),  alpha = .3) + -->
+<!--   facet_grid(month_name~.) + -->
+<!--   xlab("Date") + ylab("Monthly Food Loss and Waste (kg)") + -->
+<!--   ggtitle("Monthly Food Loss and Waste Trend") -->
+<!-- monthly_loss_waste -->
+
+<!-- # Monthly Plot on food loss ------------------------------------------------ -->
+<!-- monthly_loss <-  -->
+<!--   ggplot(data = df, aes(x = day_name, y = food_loss_kg, group=1)) + -->
+<!--   geom_line(color="black") + -->
+<!--   geom_point(aes(shape = is_closed)) + -->
+<!--   facet_grid(month_name~.) + -->
+<!--   scale_shape_manual(values=c(16, 4))+ -->
+<!--   theme(legend.position = "none") + -->
+<!--   xlab("Date") + ylab("Monthly Food Loss (kg)") + -->
+<!--   ggtitle("Monthly Food Loss Trend") -->
+<!-- monthly_loss -->
+
+<!-- # Monthly Plot on food waste ----------------------------------------------- -->
+<!-- monthly_waste <-  -->
+<!--   ggplot(data = df, aes(x = day_name, y = food_waste_kg, group=1)) + -->
+<!--   geom_line(color="black") + -->
+<!--   geom_point(aes(shape = is_closed)) + -->
+<!--   facet_grid(month_name~.) + -->
+<!--   scale_shape_manual(values=c(16, 4))+ -->
+<!--   theme(legend.position = "none") + -->
+<!--   xlab("Date") + ylab("Monthly Food Waste (kg)") + -->
+<!--   ggtitle("Monthly Food Waste Trend") -->
+<!-- monthly_waste -->
+
+<!-- # Monthly Plot on solid food waste ----------------------------------------- -->
+<!-- monthly_solid_waste <-  -->
+<!--   ggplot(data = df, aes(x = day_name, y = solid_waste_kg, group=1)) + -->
+<!--   geom_line(color="dark orange") + -->
+<!--   geom_point(aes(shape = is_closed)) + -->
+<!--   facet_grid(month_name~.) + -->
+<!--   scale_shape_manual(values=c(16, 4))+ -->
+<!--   theme(legend.position = "none") + -->
+<!--   xlab("Date") + ylab("Monthly Solid Food Waste (kg)") + -->
+<!--   ggtitle("Monthly Solid Food Waste Trend") -->
+<!-- monthly_solid_waste -->
+
+<!-- # Monthly Plot on liquid food waste ---------------------------------------- -->
+<!-- monthly_liquid_waste <-  -->
+<!--   ggplot(data = df, aes(x = day_name, y = liquid_waste_kg, group=1)) + -->
+<!--   geom_line(color="blue") + -->
+<!--   geom_point(aes(shape = is_closed)) + -->
+<!--   facet_grid(month_name~.) + -->
+<!--   scale_shape_manual(values=c(16, 4))+ -->
+<!--   theme(legend.position = "none") + -->
+<!--   xlab("Date") + ylab("Monthly Liquid ood Waste (kg)") + -->
+<!--   ggtitle("Monthly Liquid Food Waste Trend") -->
+<!-- monthly_liquid_waste -->
+
+<!-- # grid.arrange(monthly_loss_waste,monthly_loss, monthly_waste, -->
+<!-- #              monthly_solid_waste,monthly_liquid_waste) -->
+<!-- ``` -->
+
+## Histogram indep vars.
+```{r histograms_dependents}
+# Histogram of Temperature -------------------------------------------
+hist_temp <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x = temp_c)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30,colour = 1, fill = "white") +
+  geom_density(linewidth = 1.5, colour = 4, fill = 4, alpha = 0.15) +
+  labs(title = "Temperature - Histogram")
+hist_temp
+ggqqplot(df$temp_c)
+
+# Histogram of Humidity --------------------------------------------
+hist_humi <- 
+  ggplot(data = subset(df, is_closed %in% FALSE),
+         aes(x = humi_p)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30,colour = 1, fill = "white") +
+  geom_density(linewidth = 1.5, colour = 4, fill = 4, alpha = 0.15) +
+  labs(title = "Humidity - Histogram")
+hist_humi
+ggqqplot(df$humi_p)
+
+# Histogram of precipitation ----------------------------------------
+hist_prep <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x = log(prcp_mm+1))) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30,colour = 1, fill = "white") +
+  geom_density(linewidth = 1.5, colour = 1, fill = 4, alpha = 0.15) +
+  labs(title = "Precipitation - Histogram")
+hist_prep
+ggqqplot((df$prcp_mm))
+
+# Histogram of sales ----------------------------------------
+hist_sales <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x = sales)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30,colour = 1, fill = "white") +
+  geom_density(linewidth = 1.5, colour = 1, fill = 4, alpha = 0.15) +
+  labs(title = "Sales - Histogram")
+hist_sales
+ggqqplot(df$sales)
+
+# Histogram of halfs ----------------------------------------
+hist_halfs <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x = log(halfs+1))) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30,colour = 1, fill = "white") +
+  geom_density(linewidth = 1.5, colour = 1, fill = 4, alpha = 0.15) +
+  labs(title = "Halfs - Histogram")
+hist_halfs
+ggqqplot(log(df$halfs+1))
+
+```
+
+## Boxplots - weekly
+```{r boxplots weekly}
+# # weekly boxplot on food loss + food waste ----------------------------
+# boxplot_week_loss_waste <- 
+#   ggplot(data = subset(df, is_closed %in% FALSE), 
+#          aes(x=day, y=food_loss_kg + food_waste_kg)) + 
+#   geom_boxplot(outlier.shape=8, outlier.size=3) +
+#   stat_summary(fun=mean, geom="point", shape=16, size=3) +
+#   labs(title = "Boxplot of Food Loss and Food Waste in Day of the Week",
+#        x = "Week of Day", y = "Food Loss and Food Waste in kg")
+# boxplot_week_loss_waste
+# 
+# # weekly boxplot on food loss ----------------------------------
+# boxplot_week_food_loss <- 
+#   ggplot(data = subset(df, is_closed %in% FALSE),
+#          aes(x=day, y=food_loss_kg)) + 
+#   geom_boxplot(outlier.shape=8, outlier.size=3) +
+#   stat_summary(fun=mean, geom="point", shape=16, size=3) +
+#   labs(title = "Boxplot of Food Loss in Day of the Week",
+#        x = "Week of Day", y = "Food Loss in kg")
+# boxplot_week_food_loss
+
+# weekly boxplot on food waste ------------------------------------
+boxplot_week_food_waste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x=day, y=food_waste_kg)) + 
+  geom_boxplot(outlier.shape=8, outlier.size=3) +
+  stat_summary(fun=mean, geom="point", shape=16, size=3) +
+  labs(title = "Boxplot of All Food Waste in Day of the Week",
+       x = "Week of Day", y = "Food Waste in kg")
+boxplot_week_food_waste
+
+# weekly boxplot on solid food waste ------------------------------------
+boxplot_week_solidWaste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x=day, y=solid_waste_kg)) + 
+  geom_boxplot(outlier.shape=8, outlier.size=3) +
+  stat_summary(fun=mean, geom="point", shape=16, size=3) +
+  labs(title = "Boxplot of Solid Food Waste in Day of the Week",
+       x = "Week of Day", y = "Solid Food Waste in kg")
+boxplot_week_solidWaste
+
+# weekly boxplot on liquid food waste ------------------------------------
+boxplot_week_liquidWaste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x=day, y=liquid_waste_kg)) + 
+  geom_boxplot(outlier.shape=8, outlier.size=3) +
+  stat_summary(fun=mean, geom="point", shape=16, size=3) +
+  labs(title = "Boxplot of Liquid Food Waste in Day of the Week",
+       x = "Week of Day", y = "Liquid Food Waste in kg")
+boxplot_week_liquidWaste
+
+# grid.arrange(boxplot_week_food_loss,boxplot_week_food_waste,
+#              boxplot_week_solidWaste,boxplot_week_liquidWaste)
+```
+
+## Boxplots per customer - weekly
+```{r boxplots customer weekly}
+# weekly boxplot on food waste ------------------------------------
+boxplot_week_food_waste_p <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x=day, y=food_waste_kg/customers)) + 
+  geom_boxplot(outlier.shape=8, outlier.size=3) +
+  stat_summary(fun=mean, geom="point", shape=16, size=3) +
+  labs(title = "Boxplot of Food Waste per Customer in Day of the Week",
+       x = "Week of Day", y = "Food Waste per Customer in kg")
+boxplot_week_food_waste_p
+
+# weekly boxplot on solid food waste ------------------------------------
+boxplot_week_solidWaste_p <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x=day, y=solid_waste_kg/customers)) + 
+  geom_boxplot(outlier.shape=8, outlier.size=3) +
+  stat_summary(fun=mean, geom="point", shape=16, size=3) +
+  labs(title = "Boxplot of Solid Food Waste per Customer in Day of the Week",
+       x = "Week of Day", y = "Solid Food Waste per Customer in kg")
+boxplot_week_solidWaste_p
+
+# weekly boxplot on liquid food waste ------------------------------------
+boxplot_week_liquidWaste_p <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x=day, y=liquid_waste_kg/customers)) + 
+  geom_boxplot(outlier.shape=8, outlier.size=3) +
+  stat_summary(fun=mean, geom="point", shape=16, size=3) +
+  labs(title = "Boxplot of Liquid Food Waste per Customer in Day of the Week",
+       x = "Week of Day", y = "Liquid Food Waste per Customer in kg")
+boxplot_week_liquidWaste_p
+
+# grid.arrange(boxplot_week_food_loss,boxplot_week_food_waste,
+#              boxplot_week_solidWaste,boxplot_week_liquidWaste)
+```
+
+## bar plot - weekly
+```{r bar plots weekly}
+# weekly boxplot on food waste ------------------------------------
+lineplot_week_food_waste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x=day, y=food_waste_kg)) + 
+  # geom_boxplot(outlier.shape=8, outlier.size=3) +
+  stat_summary(fun=mean, geom="bar", shape=16, size=3) +
+  labs(title = "Boxplot of All Food Waste in Day of the Week",
+       x = "Week of Day", y = "Food Waste in kg")
+lineplot_week_food_waste
+
+# weekly boxplot on solid food waste ------------------------------------
+lineplot_week_solidWaste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x=day, y=solid_waste_kg)) + 
+  # geom_boxplot(outlier.shape=8, outlier.size=3) +
+  stat_summary(fun=mean, geom="bar", shape=16, size=3) +
+  labs(title = "Boxplot of Solid Food Waste in Day of the Week",
+       x = "Week of Day", y = "Solid Food Waste in kg")
+lineplot_week_solidWaste
+
+# weekly boxplot on liquid food waste ------------------------------------
+lineplot_week_liquidWaste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x=day, y=liquid_waste_kg)) + 
+  # geom_boxplot(outlier.shape=8, outlier.size=3) +
+  stat_summary(fun=mean, geom="bar", shape=16, size=3) +
+  labs(title = "Boxplot of Liquid Food Waste in Day of the Week",
+       x = "Week of Day", y = "Liquid Food Waste in kg")
+lineplot_week_liquidWaste
+
+# grid.arrange(lineplot_week_food_loss,lineplot_week_food_waste,
+#              lineplot_week_solidWaste,lineplot_week_liquidWaste)
+```
+
+## Boxplot - monthly
+```{r boxplot_monthly}
+# monthly boxplot on food waste ------------------------------------
+boxplot_month_waste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE),
+         aes(x=month_name, y=food_waste_kg)) + 
+  geom_boxplot(outlier.shape=8, outlier.size=2) +
+  stat_summary(fun=mean, geom="point", shape=16, size=2) +
+  labs(title = "Boxplot of Daily Food Waste in Month",
+       x = "Month", y = "Food Waste in kg")
+boxplot_month_waste
+
+# monthly boxplot on solid food waste ------------------------------------
+boxplot_month_solidWaste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE),
+         aes(x=month_name, y=solid_waste_kg)) + 
+  geom_boxplot(outlier.shape=8, outlier.size=2) +
+  stat_summary(fun=mean, geom="point", shape=16, size=2) +
+  labs(title = "Boxplot of Daily Solid Food Waste in Month",
+       x = "Monthy", y = "Solid Food Waste in kg")
+boxplot_month_solidWaste
+
+# boxplot of week of day for solid food waste ------------------------------------
+boxplot_month_liquidWaste <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x=month_name, y=liquid_waste_kg)) + 
+  geom_boxplot(outlier.shape=8, outlier.size=2) +
+  stat_summary(fun=mean, geom="point", shape=16, size=2) +
+  labs(title = "Boxplot of Liquid Food Waste in Month",
+       x = "Month", y = "Liquid Food Waste in kg")
+boxplot_month_liquidWaste
+
+# grid.arrange(boxplot_month_loss_waste, boxplot_month_loss,boxplot_month_waste,
+#              boxplot_month_solidWaste,boxplot_month_liquidWaste)
+```
+## Boxplot per customer - monthly
+```{r boxplot_monthly customer}
+# monthly boxplot on food waste ------------------------------------
+boxplot_month_waste_p <- 
+  ggplot(data = subset(df, is_closed %in% FALSE),
+         aes(x=month_name, y=food_waste_kg/customers)) + 
+  geom_boxplot(outlier.shape=8, outlier.size=2) +
+  stat_summary(fun=mean, geom="point", shape=16, size=2) +
+  labs(title = "Boxplot of Food Waste per Customer in Month",
+       x = "Month", y = "Food Waste per Customer in kg")
+boxplot_month_waste_p
+
+# monthly boxplot on solid food waste ------------------------------------
+boxplot_month_solidWaste_p <- 
+  ggplot(data = subset(df, is_closed %in% FALSE),
+         aes(x=month_name, y=solid_waste_kg/customers)) + 
+  geom_boxplot(outlier.shape=8, outlier.size=2) +
+  stat_summary(fun=mean, geom="point", shape=16, size=2) +
+  labs(title = "Boxplot of Solid Food Waste per Customer in Month",
+       x = "Monthy", y = "Solid Food Waste per Customer in kg")
+boxplot_month_solidWaste_p
+
+# boxplot of week of day for solid food waste ------------------------------------
+boxplot_month_liquidWaste_p <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), 
+         aes(x=month_name, y=liquid_waste_kg/customers)) + 
+  geom_boxplot(outlier.shape=8, outlier.size=2) +
+  stat_summary(fun=mean, geom="point", shape=16, size=2) +
+  labs(title = "Boxplot of Liquid Food Waste per Customer in Month",
+       x = "Month", y = "Liquid Food Waste per Customer in kg")
+boxplot_month_liquidWaste_p
+
+# grid.arrange(boxplot_month_loss_waste, boxplot_month_loss,boxplot_month_waste,
+#              boxplot_month_solidWaste,boxplot_month_liquidWaste)
+```
+
+\newpage
+# Time Series Plots for Independents
+```{r tsPlot_weather}
+## Time Series plots of:
+# 1. weather conditions: temperature, humidity, precipitation
+# 2. # orders + dine in + size + liquor + daily sales (confident)
+
+# Time Series Plot on temperature ---------------------------------
+tsPlot_temp <- 
+  ggplot(data = df, aes(x = as.Date(date), y = temp_c)) +
+  geom_point() +
+  stat_smooth(method = "loess", color = "green", fill = "green",
+              formula = y~x) +
+  # geom_line(aes(group = 1), color="orange") +
+  geom_hline(aes(yintercept = 22), linetype='dotted') +
+  scale_x_date(date_labels = "%b %d") +
+  xlab("Date") + ylab("Temperature in Degree Celsius") +
+  ggtitle("Daily Average Hourly Temperature Plot")
+tsPlot_temp
+
+# Time Series Plot on gap temperature with 22C---------------------------------
+tsPlot_temp_gap <- 
+  ggplot(data = df, aes(x = as.Date(date), y = temp_c-22)) +
+  geom_point() +
+  stat_smooth(method = "loess", color = "green", fill = "green",
+              formula = y~x) +
+  # geom_line(color="green") +
+  scale_x_date(date_labels = "%b %d") +
+  xlab("Date") + ylab("Gap Temperature in Degree Celsius") +
+  ggtitle("Daily Gap Temperature Plot")
+tsPlot_temp_gap
+
+# Time Series Plot on humidity ---------------------------------
+tsPlot_humidity <- 
+  ggplot(data = df, aes(x = as.Date(date), y = humi_p)) +
+  geom_point() +
+  stat_smooth(method = "loess", color = "green", fill = "green",
+              formula = y~x) +
+  # geom_line(color="red") +
+  scale_x_date(date_labels = "%b %d") +
+  xlab("Date") + ylab("Humidity in Percent") +
+  ggtitle("Daily Humidity Plot")
+tsPlot_humidity
+
+# Time Series Plot on precipitation ---------------------------------
+tsPlot_precip <- 
+  ggplot(data = df, aes(x = as.Date(date), y = prcp_mm)) +
+  geom_point() +
+  stat_smooth(method = "loess", color = "green", fill = "green",
+              formula = y~x) +
+  # geom_line(color="blue") +
+  scale_x_date(date_labels = "%b %d") +
+  xlab("Date") + ylab("Precipitation in millimetre") +
+  ggtitle("Daily Precipitation Plot")
+tsPlot_precip
+
+# grid.arrange(tsPlot_temp,tsPlot_temp_gap,tsPlot_humidity, tsPlot_precip)
+```
+
+
+```{r tsPlot_business}
+## Time Series plots of:
+# 1. # orders (full, half, takeouts)
+# 2. daily dine in served (kg)
+# 4. liquor
+# 5. daily sales (confident)
+
+# Time Series Plot on Meal Orders ---------------------------------
+tsPlot_total_orders <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), aes(x=as.Date(date))) +
+  geom_line(aes(y = fulls, color="fulls")) +
+  geom_line(aes(y = halfs, color="halfs")) +
+  scale_x_date(date_labels = "%b %d") +
+  geom_line(aes(y = takeouts, color="takeouts"), linetype = "dashed") +
+  xlab("Date") + ylab("Daily Number of Meal Orders") +
+  ggtitle("Daily Different Package Meal Orders Plot")+
+  scale_color_manual(name='Packages',
+                     breaks=c('fulls', 'halfs', 'takeouts'),
+                     values=c('fulls' = 'dark blue',
+                              'halfs' = 'purple', 
+                              'takeouts'='dark red')) +
+  theme(legend.position = "right")
+tsPlot_total_orders
+
+# Time Series Plot on demand and production ---------------------------------
+tsPlot_D_S <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), aes(x = as.Date(date))) +
+  geom_line(aes(y = daily_total_served), color="dark blue") +
+  geom_line(aes(y = FL_FP_kg), color="dark red", linetype = "dashed") +
+  scale_x_date(date_labels = "%b %d") +
+  xlab("Date") + ylab("Daily Quantity in kg") +
+  ggtitle("Daily Total Served and Production Plot") +
+  scale_color_manual(name='Served',
+                     breaks=c('daily_total_served', 'FL_FP_kg'),
+                     values=c('daily_total_served' = 'dark blue',
+                              'FL_FP_kg' = 'dark red')) +
+  theme(legend.position = "right")
+tsPlot_D_S
+
+tsPlot_diff_D_S <- 
+  ggplot(data = subset(df, is_closed %in% FALSE), aes(x = as.Date(date))) +
+  geom_line(aes(y = daily_total_served - FL_FP_kg), color="black") +
+  stat_smooth(aes(y = daily_total_served - FL_FP_kg), method = "loess",
+              color = "light green", fill = "light green") +
+  scale_x_date(date_labels = "%b %d") +
+  xlab("Date") + ylab("Daily Inventory in kg") +
+  ggtitle("Difference Between Total Served and Production Plot")
+tsPlot_diff_D_S
+
+# Time Series Plot on precipitation ---------------------------------
+tsPlot_sales <- 
+  ggplot(data = subset(df, is_closed %in% FALSE),aes(x = as.Date(date))) +
+  geom_line(aes(y = sales), color="purple") +
+  scale_x_date(date_labels = "%b %d") +
+  stat_smooth(aes(y = sales), method = "loess",
+              color = "light green", fill = "light green") +
+  xlab("Date") + ylab("Daily Sales in dollar") +
+  ggtitle("Daily Sales Plot")
+tsPlot_sales
+
+# grid.arrange(tsPlot_total_orders,tsPlot_D_S, tsPlot_diff_D_S,tsPlot_sales)
+```
+
+## (Partial and) Autocorrelation Function
+```{r acf pacf}
+## acf and pacf ----------------------------------------------------------------
+# acf and pacf for food loss ---------------------------------------------------
+acf_fl  <- ggAcf(as.ts(df$food_loss_kg))
+pacf_fl <- ggPacf(as.ts(df$food_loss_kg))
+# acf and pacf for all food waste ----------------------------------------------
+acf_fw  <- ggAcf(as.ts(df$food_waste_kg))
+pacf_fw <- ggPacf(as.ts(df$food_waste_kg))
+# acf and pacf for solid food waste --------------------------------------------
+acf_sfw  <- ggAcf(as.ts(df$solid_waste_kg))
+pacf_sfw <- ggPacf(as.ts(df$solid_waste_kg))
+# acf and pacf for liquid food waste -------------------------------------------
+acf_lfw  <- ggAcf(as.ts(df$liquid_waste_kg))
+pacf_lfw <- ggPacf(as.ts(df$liquid_waste_kg))
+
+
+grid.arrange(acf_fl,pacf_fl)
+grid.arrange(acf_fw,pacf_fw)
+grid.arrange(acf_sfw,pacf_sfw)
+grid.arrange(acf_lfw,pacf_lfw)
+```
+
+\newpage
+## Spectral Analysis
+```{r spec_all}
+# spectrum analysis for food loss ---------------------------------------------
+# plot.spectrum(dt$allWasteKg)
+raw.spec_fl <- list(spec.pgram(df$food_loss_kg, spans = 10))
+1/raw.spec_fl[[1]]$freq[which.max(raw.spec_fl[[1]]$spec)]
+
+# spectrum analysis for food waste ---------------------------------------------
+# plot.spectrum(dt$allWasteKg)
+raw.spec_fw<- list(spec.pgram(df$food_waste_kg, spans = 10))
+1/raw.spec_fw[[1]]$freq[which.max(raw.spec_fw[[1]]$spec)]
+
+# spectrum analysis for food waste ---------------------------------------------
+# plot.spectrum(dt$allWasteKg)
+raw.spec_sfw<- list(spec.pgram(df$solid_waste_kg, spans = 10))
+1/raw.spec_sfw[[1]]$freq[which.max(raw.spec_sfw[[1]]$spec)]
+
+# spectrum analysis for food waste ---------------------------------------------
+# plot.spectrum(dt$allWasteKg)
+raw.spec_lfw<- list(spec.pgram(df$liquid_waste_kg, spans = 10))
+1/raw.spec_lfw[[1]]$freq[which.max(raw.spec_lfw[[1]]$spec)]
+```
+roughly 6 (days) period for food waste,
+but food loss is approx. 3 days or 20 days cycle.
+
+
+```{r delete envir}
+### Erase states
+rm(list = ls()[! ls() %in% c("df", "AdjMat")])
+```
+

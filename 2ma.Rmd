@@ -1,0 +1,1051 @@
+---
+title: "Bivariate - MA Data Analysis"
+author: "Akihiko Mori"
+output: rmdformats::readthedown
+  # pdf_document:
+  # html_document:
+  #   toc: true
+  #   theme: united
+  # code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(fig.show="hold", out.width="50%") 
+```
+
+
+```{r packages,echo=FALSE, message = FALSE, warning=FALSE}
+## Library
+library(beans)
+library(corrr)
+library(forecast) # ggAcf
+library(ggbiplot)
+library(ggcorrplot) # cor_pmat
+library(ggplot2) # ggplot
+library(ggpubr)
+library(gridExtra) # grid.arrange function
+library(lubridate) # wday function
+library(patchwork)
+library(performance) # check_model
+library(see) # check_model
+library(dplyr) # mutate
+library(rstatix)
+library(tidymodels)
+library(tidyverse)
+library(tseries) # adf.test
+```
+
+```{r import data,echo=FALSE, message = FALSE, warning=FALSE}
+rm(df)
+dataPass = "/Users/am/Library/CloudStorage/OneDrive-UNBC/00MAthesis/ma24r/ma24data"
+df <- read_csv(dataPass)
+rm(dataPass)
+```
+
+
+# Correlation b/w dependent vars.(food loss and food waste)
+```{r correlation_dep.vars}
+# independent variables ----
+deptData <- df %>%
+  filter(is_closed %in% FALSE) %>%
+  rstatix::select(c(food_waste_kg,liquid_waste_kg,solid_waste_kg))
+  # select(c(food_loss_kg,food_waste_kg,
+  #          liquid_waste_kg,solid_waste_kg))
+
+# correlation between independent variables ------------------------------------
+deptData %>% cor_mat()
+# correlation p-values ---------------------------------------------------------
+deptData %>% ggcorrplot::cor_pmat()
+
+# visulalization
+deptData %>%
+  cor_mat() %>%
+  cor_reorder() %>%
+  pull_lower_triangle() %>%
+  cor_plot(label = TRUE) 
+```
+
+# Correlation b/w dependent vars.(food loss and food waste)
+```{r correlation_log_dep.vars}
+# independent variables ----
+log_deptData <- df %>%
+  filter(is_closed %in% FALSE) %>%
+  rstatix::select(c(food_waste_kg,liquid_waste_kg,solid_waste_kg))%>%
+  log()
+log_deptData <- log_deptData + 1
+  # select(c(food_loss_kg,food_waste_kg,
+  #          liquid_waste_kg,solid_waste_kg))
+
+# correlation between independent variables ------------------------------------
+log_deptData %>% cor_mat()
+# correlation p-values ---------------------------------------------------------
+log_deptData %>% ggcorrplot::cor_pmat()
+
+# visulalization
+# log_deptData %>%
+#   cor_mat() %>%
+#   cor_reorder() %>%
+#   pull_lower_triangle() %>%
+#   cor_plot(label = TRUE) 
+```
+
+\newpage
+# Correlation b/w independent vars.
+```{r}
+# independent variables ----
+indeptData <- df %>%
+  filter(.,is_closed == FALSE) %>%
+  rstatix::select(c(temp_c,humi_p, prcp_mm,
+           fulls, halfs, takeouts,
+           customers, liquors, sales))
+
+# correlation between independent variables ------------------------------------
+indeptData %>% cor_mat()
+# correlation p-values ---------------------------------------------------------
+indeptData %>% 
+  ggcorrplot::cor_pmat() %>% 
+   round(digits = 4)
+
+# visulalization
+indeptData %>%
+  cor_mat() %>%
+  cor_reorder() %>%
+  pull_lower_triangle() %>%
+  cor_plot(label = TRUE)
+```
+
+\newpage
+## Correlation b/w independent vars.
+```{r}
+# independent variables ----
+indeptData <- df %>%
+  filter(.,is_closed == FALSE) %>%
+  rstatix::select(c(temp_c,humi_p, prcp_mm,
+           customers, liquors, sales))
+
+# correlation between independent variables ------------------------------------
+indeptData %>% rstatix::cor_mat()
+# correlation p-values ---------------------------------------------------------
+indeptData %>% ggcorrplot::cor_pmat()
+
+# visulalization
+indeptData %>%
+  cor_mat() %>%
+  cor_reorder() %>%
+  pull_lower_triangle() %>%
+  cor_plot(label = TRUE)
+
+tidymodels_prefer()
+indept_corr <- indeptData %>%
+  # select(-class) %>%      # drop non-numeric cols
+  correlate() %>%         # generate a correlation matrix in data frame format
+  rearrange() %>%         # group highly correlated variables together
+  shave()                 # shave off the upper triangle
+
+# plot the correlation matrix
+indept_corr %>%
+  rplot(print_cor=TRUE) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+\newpage
+# Principal Component Analysis
+```{r pca}
+# https://www.rpubs.com/twyunting/PCA_in_the_tidyverse_Framework
+# https://stackoverflow.com/questions/73786208/ggbiplot-how-to-change-the-colour-of-the-arrows-and-text-using-a-function-for
+
+# PCA for business variables:
+# customers,fulls,halfs,takeouts,liquors,sales
+pca_bus <- df %>%
+  filter(is_closed == FALSE) %>%
+  select(c(customers,fulls,halfs,takeouts,liquors,sales)) %>%
+  prcomp()
+pca_bus
+
+# Visualization ----
+# the first principal direction (PC1) space
+pca_bus %>%
+  tidy(matrix = "loadings") %>%
+  filter(PC == 1) %>%
+  ggplot(aes(value, column)) +
+  geom_col() +
+  theme_bw()
+
+# each pc space
+pca_bus %>%
+  tidy(matrix = "loadings") %>%
+  ggplot(aes(value, column)) +
+  geom_col() +
+  facet_wrap(~PC)
+
+# Variance explained
+pca_bus %>%
+  tidy(matrix = "pcs") %>%
+  ggplot(aes(PC, percent)) +
+  geom_col() +
+  theme_bw() +
+  scale_x_continuous(breaks = 1:8) +
+  scale_y_continuous(
+    labels = scales::percent_format(),
+    expand = expansion(mult = c(0, 0.01))
+  )
+
+ggbiplot(pca_bus)
+
+# PCA for weather terms:
+# temperature, humidity, precipitation
+pca_weather <- df %>%
+  filter(is_closed == FALSE) %>%
+  select(c(temp_c,humi_p,prcp_mm)) %>%
+  prcomp()
+pca_weather
+
+# Visualization ----
+# the first principal direction (PC1) space
+pca_weather %>%
+  tidy(matrix = "loadings") %>%
+  filter(PC == 1) %>%
+  ggplot(aes(value, column)) +
+  geom_col() +
+  theme_bw()
+
+# each pc space
+pca_weather %>%
+  tidy(matrix = "loadings") %>%
+  ggplot(aes(value, column)) +
+  geom_col() +
+  facet_wrap(~PC)
+
+# Variance explained
+pca_weather %>%
+  tidy(matrix = "pcs") %>%
+  ggplot(aes(PC, percent)) +
+  geom_col() +
+  theme_bw() +
+  scale_x_continuous(breaks = 1:8) +
+  scale_y_continuous(
+    labels = scales::percent_format(),
+    expand = expansion(mult = c(0, 0.01))
+  )
+
+ggbiplot(pca_weather)
+```
+
+
+# Scatter Plot
+## FW with temp
+```{r waste_temp}
+# food waste and temperature ---------------------
+scatter_waste_temp <-
+  ggplot(subset(df,is_closed==FALSE),
+         aes(x=temp_c, y=food_waste_kg)) +
+  geom_point(size = 2) +
+  geom_point(shape = 1, color = "black", size = 2) +
+  geom_smooth(method="lm", formula = y ~ x, fullrange=TRUE) +
+  geom_rug() +
+  scale_y_continuous(name = "Daily Food Waste (kg)",
+  limits = c(0, 7), expand = c(0, 0)) +
+  scale_x_continuous(name = "Daily Temperature (Degree Celsius)",
+  limits = c(-40, 15), expand = c(0, 0)) +
+  theme_pubr() +
+  theme(legend.position = c(0.15, 0.9))
+#scatter_waste_temp
+
+dens_temp <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = temp_c)) +
+  geom_density(color="black", fill="grey") +
+  scale_fill_grey() +
+  theme_void() +
+  theme(legend.position = "none")
+#dens_temp
+
+dens_waste <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = food_waste_kg), fill = "dark") +
+  geom_density(color="black", fill="grey") +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_flip()
+#dens_waste
+
+scatter_dens_waste_temp <- 
+  dens_temp +
+  labs(title = "Scatter and Kernel Densities of Food Waste with Temperature (°C)") +
+  plot_spacer() + # library(patchwork)
+  scatter_waste_temp + dens_waste +
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+scatter_dens_waste_temp
+
+rm("dens_waste","dens_temp","scatter_waste_temp")
+
+# solid food waste and temperature ---------------
+scatter_waste_temp <-
+  ggplot(subset(df,is_closed==FALSE),aes(x=temp_c, y=solid_waste_kg)) +
+  geom_point(size = 2) +
+  geom_point(shape = 1, color = "black", size = 2) +
+  geom_smooth(method="lm", formula = y ~ x, fullrange=TRUE) +
+  geom_rug() +
+  scale_y_continuous(name = "Daily Food Waste (kg)",
+  limits = c(0, 3), expand = c(0, 0)) +
+  scale_x_continuous(name = "Daily Temperature (Degree Celsius)",
+  limits = c(-40, 15), expand = c(0, 0)) +
+  theme_pubr() +
+  theme(legend.position = c(0.15, 0.9))
+#scatter_waste_temp
+
+dens_temp <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = temp_c)) +
+  geom_density(color="black", fill="grey") +
+  scale_fill_grey() +
+  theme_void() +
+  theme(legend.position = "none")
+#dens_temp
+
+dens_waste <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = food_waste_kg), fill = "dark") +
+  geom_density(color="black", fill="grey") +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_flip()
+#dens_waste
+
+scatter_dens_solid_waste_temp <- 
+  dens_temp +
+  labs(title = "Scatter and Kernel Densities of Solid Food Waste with Temperature (°C)") +
+  plot_spacer() + # library(patchwork)
+  scatter_waste_temp + dens_waste +
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+scatter_dens_solid_waste_temp
+
+rm("dens_waste","dens_temp","scatter_waste_temp")
+
+# liquid food waste and temperature --------------
+scatter_waste_temp <-
+  ggplot(subset(df,is_closed==FALSE),aes(x=temp_c, y=liquid_waste_kg)) +
+  geom_point(size = 2) +
+  geom_point(shape = 1, color = "black", size = 2) +
+  geom_smooth(method="lm", formula = y ~ x, fullrange=TRUE) +
+  geom_rug() +
+  scale_y_continuous(name = "Daily Food Waste (kg)",
+  limits = c(0, 5), expand = c(0, 0)) +
+  scale_x_continuous(name = "Daily Temperature (Degree Celsius)",
+  limits = c(-40, 15), expand = c(0, 0)) +
+  theme_pubr() +
+  theme(legend.position = c(0.15, 0.9))
+#scatter_waste_temp
+
+dens_temp <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = temp_c)) +
+  geom_density(color="black", fill="grey") +
+  scale_fill_grey() +
+  theme_void() +
+  theme(legend.position = "none")
+#dens_temp
+
+dens_waste <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = food_waste_kg), fill = "dark") +
+  geom_density(color="black", fill="grey") +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_flip()
+#dens_waste
+
+scatter_dens_liquied_waste_temp <- 
+  dens_temp +
+  labs(title = "Scatter and Kernel Densities of Liquid Food Waste with Temperature (°C)") +
+  plot_spacer() + # library(patchwork)
+  scatter_waste_temp + dens_waste +
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+scatter_dens_liquied_waste_temp
+
+rm("dens_waste","dens_temp","scatter_waste_temp")
+```
+
+## FW with humidity
+```{r waste_humidity}
+# food waste and humidity ---------------------
+scatter_waste_humi <-
+  ggplot(subset(df,is_closed==FALSE),aes(x=humi_p, y=food_waste_kg)) +
+  geom_point(size = 2) +
+  geom_point(shape = 1, color = "black", size = 2) +
+  geom_smooth(method="lm", formula = y ~ x, fullrange=TRUE) +
+  geom_rug() +
+  scale_y_continuous(name = "Daily Food Waste (kg)",
+  limits = c(0, 7), expand = c(0, 0)) +
+  scale_x_continuous(name = "Daily Humidity (Percent)",
+  limits = c(50, 100), expand = c(0, 0)) +
+  theme_pubr() +
+  theme(legend.position = c(0.15, 0.9))
+# scatter_waste_humi
+
+dens_humi <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = humi_p)) +
+  geom_density(color="black", fill="grey") +
+  scale_fill_grey() +
+  theme_void() +
+  theme(legend.position = "none")
+#dens_humi
+
+dens_waste <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = food_waste_kg), fill = "dark") +
+  geom_density(color="black", fill="grey") +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_flip()
+#dens_waste
+
+scatter_dens_waste_humi <- 
+  dens_humi +
+  labs(title = "Scatter and Kernel Densities of Food Waste with Humidity (%)") +
+  plot_spacer() + # library(patchwork)
+  scatter_waste_humi + dens_waste +
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+scatter_dens_waste_humi
+
+rm("dens_waste","dens_humi","scatter_waste_humi")
+
+# solid food waste and humidity ---------------
+scatter_waste_humi <-
+  ggplot(subset(df,is_closed==FALSE),aes(x=humi_p, y=solid_waste_kg)) +
+  geom_point(size = 2) +
+  geom_point(shape = 1, color = "black", size = 2) +
+  geom_smooth(method="lm", formula = y ~ x, fullrange=TRUE) +
+  geom_rug() +
+  scale_y_continuous(name = "Daily Food Waste (kg)",
+  limits = c(0, 3), expand = c(0, 0)) +
+  scale_x_continuous(name = "Daily Humidity (Percent)",
+  limits = c(50, 100), expand = c(0, 0)) +
+  theme_pubr() +
+  theme(legend.position = c(0.15, 0.9))
+#scatter_waste_humi
+
+dens_humi <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = humi_p)) +
+  geom_density(color="black", fill="grey") +
+  scale_fill_grey() +
+  theme_void() +
+  theme(legend.position = "none")
+#dens_humi
+
+dens_waste <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = solid_waste_kg), fill = "dark") +
+  geom_density(color="black", fill="grey") +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_flip()
+#dens_waste
+
+scatter_dens_solid_waste_humi <- 
+  dens_humi +
+  labs(title = "Scatter and Kernel Densities of Solid Food Waste with Humidity (%)") +
+  plot_spacer() + # library(patchwork)
+  scatter_waste_humi + dens_waste +
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+scatter_dens_solid_waste_humi
+
+rm("dens_waste","dens_humi","scatter_waste_humi")
+
+# liquid food waste and humidity --------------
+scatter_waste_humi <-
+  ggplot(subset(df,is_closed==FALSE),aes(x=humi_p, y=liquid_waste_kg)) +
+  geom_point(size = 2) +
+  geom_point(shape = 1, color = "black", size = 2) +
+  geom_smooth(method="lm", formula = y ~ x, fullrange=TRUE) +
+  geom_rug() +
+  scale_y_continuous(name = "Daily Food Waste (kg)",
+  limits = c(0, 5), expand = c(0, 0)) +
+  scale_x_continuous(name = "Daily Humidity (Percent)",
+  limits = c(50, 100), expand = c(0, 0)) +
+  theme_pubr() +
+  theme(legend.position = c(0.15, 0.9))
+#scatter_waste_humi
+
+dens_humi <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = humi_p)) +
+  geom_density(color="black", fill="grey") +
+  scale_fill_grey() +
+  theme_void() +
+  theme(legend.position = "none")
+#dens_humi
+
+dens_waste <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = liquid_waste_kg), fill = "dark") +
+  geom_density(color="black", fill="grey") +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_flip()
+#dens_waste
+
+scatter_dens_liquied_waste_humi <- 
+  dens_humi +
+  labs(title = "Scatter and Kernel Densities of Liquid Food Waste with Humidity (%)") +
+  plot_spacer() + # library(patchwork)
+  scatter_waste_humi + dens_waste +
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+scatter_dens_liquied_waste_humi
+
+rm("dens_waste","dens_humi","scatter_waste_humi")
+
+```
+
+## FW with precipitation
+```{r density_scatter_waste_precip}
+# food waste and humidity ------------------------
+scatter_waste_precip <-
+  ggplot(subset(df,is_closed==FALSE),aes(x=prcp_mm, y=food_waste_kg)) +
+  geom_point(size = 2) +
+  geom_point(shape = 1, color = "black", size = 2) +
+  geom_smooth(method="lm", formula = y ~ x, fullrange=TRUE) +
+  geom_rug() +
+  scale_y_continuous(name = "Daily Food Waste (kg)",
+                     limits = c(-10, 10), expand = c(0.05, 0)) +
+  scale_x_continuous(name = "Daily Precipitation (mm)",
+                     limits = c(-15, 15), expand = c(0.05, 0)) +
+  coord_cartesian(xlim=c(0,15), ylim=c(0,7)) +
+  theme_pubr() +
+  theme(legend.position = c(0.15, 0.9))
+#scatter_waste_precip
+
+dens_precip <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = prcp_mm)) +
+  geom_density(color="black", fill="grey") +
+  scale_fill_grey() +
+  theme_void() +
+  theme(legend.position = "none")
+#dens_precip
+
+dens_waste <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = food_waste_kg), fill = "dark") +
+  geom_density(color="black", fill="grey") +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_flip()
+#dens_waste
+
+scatter_dens_precip <- 
+  dens_precip +
+  labs(title = "Scatter and Kernel Densities of Food Waste and Precipitation (mm)") +
+  plot_spacer() + # library(patchwork)
+  scatter_waste_precip + dens_waste +
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+scatter_dens_precip
+
+# Solid food waste and humidity ------------------------
+scatter_waste_precip <-
+  ggplot(subset(df,is_closed==FALSE),aes(x=prcp_mm, y=solid_waste_kg)) +
+  geom_point(size = 2) +
+  geom_point(shape = 1, color = "black", size = 2) +
+  geom_smooth(method="lm", formula = y ~ x, fullrange=TRUE) +
+  geom_rug() +
+  scale_y_continuous(name = "Daily Solid Food Waste (kg)",
+                     limits = c(-10, 10), expand = c(0.05, 0)) +
+  scale_x_continuous(name = "Daily Precipitation (mm)",
+                     limits = c(-15, 15), expand = c(0.05, 0)) +
+  coord_cartesian(xlim=c(0,15), ylim=c(0,3)) +
+  theme_pubr() +
+  theme(legend.position = c(0.15, 0.9))
+#scatter_waste_precip
+
+dens_precip <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = prcp_mm)) +
+  geom_density(color="black", fill="grey") +
+  scale_fill_grey() +
+  theme_void() +
+  theme(legend.position = "none")
+#dens_precip
+
+dens_waste <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = solid_waste_kg), fill = "dark") +
+  geom_density(color="black", fill="grey") +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_flip()
+#dens_waste
+
+scatter_solid_precip <- 
+  dens_precip +
+  labs(title = "Scatter and Kernel Densities of Solid Food Waste and Precipitation (mm)") +
+  plot_spacer() + # library(patchwork)
+  scatter_waste_precip + dens_waste +
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+scatter_solid_precip
+
+# Liquid food waste and humidity ------------------------
+scatter_waste_precip <-
+  ggplot(subset(df,is_closed==FALSE),aes(x=prcp_mm, y=liquid_waste_kg)) +
+  geom_point(size = 2) +
+  geom_point(shape = 1, color = "black", size = 2) +
+  geom_smooth(method="lm", formula = y ~ x, fullrange=TRUE) +
+  geom_rug() +
+  scale_y_continuous(name = "Daily Solid Food Waste (kg)",
+                     limits = c(-10, 10), expand = c(0.05, 0)) +
+  scale_x_continuous(name = "Daily Precipitation (mm)",
+                     limits = c(-15, 15), expand = c(0.05, 0)) +
+  coord_cartesian(xlim=c(0,15), ylim=c(0,6)) +
+  theme_pubr() +
+  theme(legend.position = c(0.15, 0.9))
+#scatter_waste_precip
+
+dens_precip <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = prcp_mm)) +
+  geom_density(color="black", fill="grey") +
+  scale_fill_grey() +
+  theme_void() +
+  theme(legend.position = "none")
+#dens_precip
+
+dens_waste <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = liquid_waste_kg), fill = "dark") +
+  geom_density(color="black", fill="grey") +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_flip()
+#dens_waste
+
+scatter_liquid_precip <- 
+  dens_precip +
+  labs(title = "Scatter and Kernel Densities of Liquid Food Waste and Precipitation (mm)") +
+  plot_spacer() + # library(patchwork)
+  scatter_waste_precip + dens_waste +
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+scatter_liquid_precip
+
+rm("dens_waste","dens_precip","scatter_waste_precip")
+```
+
+
+## FW with customers
+```{r}
+# food waste and customer ------------------------
+scatter_waste_customer <-
+  ggplot(subset(df,is_closed==FALSE),
+         aes(x=customers, y=food_waste_kg)) +
+  geom_point(size = 2) +
+  geom_point(shape = 1, color = "black", size = 2) +
+  geom_smooth(method="lm", formula = y ~ x, fullrange=TRUE) +
+  geom_rug() +
+  scale_y_continuous(name = "Daily Food Waste (kg)",
+                     limits = c(-10, 10), expand = c(0.05, 0)) +
+  scale_x_continuous(name = "Daily Number of Customers",
+                     limits = c(0, 60), expand = c(0.05, 0)) +
+  coord_cartesian(xlim=c(0,50), ylim=c(0,7)) +
+  theme_pubr() +
+  theme(legend.position = c(0.15, 0.9))
+#scatter_waste_customer
+
+dens_customer <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = customers)) +
+  geom_density(color="black", fill="grey") +
+  scale_fill_grey() +
+  theme_void() +
+  theme(legend.position = "none")
+#dens_customer
+
+dens_waste <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = food_waste_kg), fill = "dark") +
+  geom_density(color="black", fill="grey") +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_flip()
+#dens_waste
+
+scatter_dens_customer <- 
+  dens_customer +
+  labs(title = "Scatter and Kernel Densities of Food Waste and Customers") +
+  plot_spacer() + # library(patchwork)
+  scatter_waste_customer + dens_waste +
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+scatter_dens_customer
+
+# solid food waste and customer ------------------------
+scatter_waste_customer <-
+  ggplot(subset(df,is_closed==FALSE),
+         aes(x=customers, y=solid_waste_kg)) +
+  geom_point(size = 2) +
+  geom_point(shape = 1, color = "black", size = 2) +
+  geom_smooth(method="lm", formula = y ~ x, fullrange=TRUE) +
+  geom_rug() +
+  scale_y_continuous(name = "Daily Solid Food Waste (kg)",
+                     limits = c(-10, 10), expand = c(0.05, 0)) +
+  scale_x_continuous(name = "Daily Number of Customers",
+                     limits = c(0, 60), expand = c(0.05, 0)) +
+  coord_cartesian(xlim=c(0,50), ylim=c(0,3)) +
+  theme_pubr() +
+  theme(legend.position = c(0.15, 0.9))
+#scatter_waste_customer
+
+dens_customer <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = customers)) +
+  geom_density(color="black", fill="grey") +
+  scale_fill_grey() +
+  theme_void() +
+  theme(legend.position = "none")
+#dens_customer
+
+dens_waste <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = solid_waste_kg), fill = "dark") +
+  geom_density(color="black", fill="grey") +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_flip()
+#dens_waste
+
+scatter_solid_customer <- 
+  dens_customer +
+  labs(title = "Scatter and Kernel Densities of Solid Food Waste and Customers") +
+  plot_spacer() + # library(patchwork)
+  scatter_waste_customer + dens_waste +
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+scatter_solid_customer
+
+# liquid food waste and customer ------------------------
+scatter_waste_customer <-
+  ggplot(subset(df,is_closed==FALSE),
+         aes(x=customers, y=liquid_waste_kg)) +
+  geom_point(size = 2) +
+  geom_point(shape = 1, color = "black", size = 2) +
+  geom_smooth(method="lm", formula = y ~ x, fullrange=TRUE) +
+  geom_rug() +
+  scale_y_continuous(name = "Daily Liquid Food Waste (kg)",
+                     limits = c(-10, 10), expand = c(0.05, 0)) +
+  scale_x_continuous(name = "Daily Number of Customers",
+                     limits = c(0, 60), expand = c(0.05, 0)) +
+  coord_cartesian(xlim=c(0,50), ylim=c(0,6)) +
+  theme_pubr() +
+  theme(legend.position = c(0.15, 0.9))
+#scatter_waste_customer
+
+dens_customer <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = customers)) +
+  geom_density(color="black", fill="grey") +
+  scale_fill_grey() +
+  theme_void() +
+  theme(legend.position = "none")
+#dens_customer
+
+dens_waste <-
+  ggplot(subset(df,is_closed==FALSE), 
+         aes(x = liquid_waste_kg), fill = "dark") +
+  geom_density(color="black", fill="grey") +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_flip()
+#dens_waste
+
+scatter_liquid_customer <- 
+  dens_customer +
+  labs(title = "Scatter and Kernel Densities of Liquid Food Waste and Customers") +
+  plot_spacer() + # library(patchwork)
+  scatter_waste_customer + dens_waste +
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+scatter_liquid_customer
+
+rm("dens_waste","dens_customer","scatter_waste_customer")
+```
+
+
+## FW with sales
+```{r}
+# food waste and sales ------------------------
+scatter_waste_sales <-
+  ggplot(subset(df,is_closed==FALSE),
+         aes(x=sales, y=food_waste_kg)) +
+  geom_point(size = 2) +
+  geom_point(shape = 1, color = "black", size = 2) +
+  geom_smooth(method="lm", formula = y ~ x, fullrange=TRUE) +
+  geom_rug() +
+  scale_y_continuous(name = "Daily Food Waste (kg)",
+                     limits = c(-10, 10), expand = c(0.05, 0)) +
+  scale_x_continuous(name = "Daily Sales (CAD)",
+                     limits = c(0, 1300), expand = c(0.05, 0)) +
+  coord_cartesian(xlim=c(0,1300), ylim=c(0,7)) +
+  theme_pubr() +
+  theme(legend.position = c(0.15, 0.9))
+#scatter_waste_sales
+
+dens_sales <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = sales)) +
+  geom_density(color="black", fill="grey") +
+  scale_fill_grey() +
+  theme_void() +
+  theme(legend.position = "none")
+#dens_sales
+
+dens_waste <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = food_waste_kg), fill = "dark") +
+  geom_density(color="black", fill="grey") +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_flip()
+#dens_waste
+
+scatter_dens_sales <- 
+  dens_sales +
+  labs(title = "Scatter and Kernel Densities of Food Waste and Customers") +
+  plot_spacer() + # library(patchwork)
+  scatter_waste_sales + dens_waste +
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+scatter_dens_sales
+
+# solid food waste and sales ------------------------
+scatter_waste_sales <-
+  ggplot(subset(df,is_closed==FALSE),
+         aes(x=sales, y=solid_waste_kg)) +
+  geom_point(size = 2) +
+  geom_point(shape = 1, color = "black", size = 2) +
+  geom_smooth(method="lm", formula = y ~ x, fullrange=TRUE) +
+  geom_rug() +
+  scale_y_continuous(name = "Daily Food Waste (kg)",
+                     limits = c(-10, 10), expand = c(0.05, 0)) +
+  scale_x_continuous(name = "Daily Sales (CAD)",
+                     limits = c(0, 1300), expand = c(0.05, 0)) +
+  coord_cartesian(xlim=c(0,1300), ylim=c(0,4)) +
+  theme_pubr() +
+  theme(legend.position = c(0.15, 0.9))
+#scatter_waste_sales
+
+dens_sales <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = sales)) +
+  geom_density(color="black", fill="grey") +
+  scale_fill_grey() +
+  theme_void() +
+  theme(legend.position = "none")
+#dens_sales
+
+dens_waste <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = solid_waste_kg), fill = "dark") +
+  geom_density(color="black", fill="grey") +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_flip()
+#dens_waste
+
+scatter_solid_sales <- 
+  dens_sales +
+  labs(title = "Scatter and Kernel Densities of Solid Food Waste and Customers") +
+  plot_spacer() + # library(patchwork)
+  scatter_waste_sales + dens_waste +
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+scatter_solid_sales
+
+# solid food waste and sales ------------------------
+scatter_waste_sales <-
+  ggplot(subset(df,is_closed==FALSE),
+         aes(x=sales, y=liquid_waste_kg)) +
+  geom_point(size = 2) +
+  geom_point(shape = 1, color = "black", size = 2) +
+  geom_smooth(method="lm", formula = y ~ x, fullrange=TRUE) +
+  geom_rug() +
+  scale_y_continuous(name = "Daily Food Waste (kg)",
+                     limits = c(-10, 10), expand = c(0.05, 0)) +
+  scale_x_continuous(name = "Daily Sales (CAD)",
+                     limits = c(0, 1300), expand = c(0.05, 0)) +
+  coord_cartesian(xlim=c(0,1300), ylim=c(0,3)) +
+  theme_pubr() +
+  theme(legend.position = c(0.15, 0.9))
+#scatter_waste_sales
+
+dens_sales <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = sales)) +
+  geom_density(color="black", fill="grey") +
+  scale_fill_grey() +
+  theme_void() +
+  theme(legend.position = "none")
+#dens_sales
+
+dens_waste <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = liquid_waste_kg), fill = "dark") +
+  geom_density(color="black", fill="grey") +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_flip()
+#dens_waste
+
+scatter_liquid_sales <- 
+  dens_sales +
+  labs(title = "Scatter and Kernel Densities of Liquid Food Waste and Customers") +
+  plot_spacer() + # library(patchwork)
+  scatter_waste_sales + dens_waste +
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+scatter_liquid_sales
+
+rm("dens_waste","dens_sales","scatter_waste_sales")
+```
+
+
+
+## FW with liquor
+```{r}
+# food waste and liquor ------------------------
+scatter_waste_liquor <-
+  ggplot(subset(df,is_closed==FALSE),
+         aes(x=liquors, y=food_waste_kg)) +
+  geom_point(size = 2) +
+  geom_point(shape = 1, color = "black", size = 2) +
+  geom_smooth(method="lm", formula = y ~ x, fullrange=TRUE) +
+  geom_rug() +
+  scale_y_continuous(name = "Daily Food Waste (kg)",
+                     limits = c(-10, 10), expand = c(0.05, 0)) +
+  scale_x_continuous(name = "Daily Liquor Sold",
+                     limits = c(0, 10), expand = c(0.01, 0)) +
+  coord_cartesian(xlim=c(0,8), ylim=c(0,7)) +
+  theme_pubr() +
+  theme(legend.position = c(0.15, 0.9))
+#scatter_waste_liquor
+
+dens_liquor <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = liquors)) +
+  geom_density(color="black", fill="grey") +
+  scale_fill_grey() +
+  theme_void() +
+  theme(legend.position = "none")
+#dens_liquor
+
+dens_waste <-
+  ggplot(subset(df,is_closed==FALSE), 
+         aes(x = food_waste_kg), fill = "dark") +
+  geom_density(color="black", fill="grey") +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_flip()
+#dens_waste
+
+scatter_dens_liquor <- 
+  dens_liquor +
+  labs(title = "Scatter and Kernel Densities of Food Waste and Liquor") +
+  plot_spacer() + # library(patchwork)
+  scatter_waste_liquor + dens_waste +
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+scatter_dens_liquor
+
+# solid food waste and liquor ------------------------
+scatter_waste_liquor <-
+  ggplot(subset(df,is_closed==FALSE),
+         aes(x=liquors, y=solid_waste_kg)) +
+  geom_point(size = 2) +
+  geom_point(shape = 1, color = "black", size = 2) +
+  geom_smooth(method="lm", formula = y ~ x, fullrange=TRUE) +
+  geom_rug() +
+  scale_y_continuous(name = "Daily Solid Food Waste (kg)",
+                     limits = c(-10, 10), expand = c(0.05, 0)) +
+  scale_x_continuous(name = "Daily Liquor Sold",
+                     limits = c(0, 10), expand = c(0.01, 0)) +
+  coord_cartesian(xlim=c(0,8), ylim=c(0,3)) +
+  theme_pubr() +
+  theme(legend.position = c(0.15, 0.9))
+#scatter_waste_liquor
+
+dens_liquor <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = liquors)) +
+  geom_density(color="black", fill="grey") +
+  scale_fill_grey() +
+  theme_void() +
+  theme(legend.position = "none")
+#dens_liquor
+
+dens_waste <-
+  ggplot(subset(df,is_closed==FALSE), 
+         aes(x = solid_waste_kg), fill = "dark") +
+  geom_density(color="black", fill="grey") +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_flip()
+#dens_waste
+
+scatter_solid_liquor <- 
+  dens_liquor +
+  labs(title = "Scatter and Kernel Densities of Solid Food Waste and Liquor") +
+  plot_spacer() + # library(patchwork)
+  scatter_waste_liquor + dens_waste +
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+scatter_solid_liquor
+
+# liquid food waste and liquor ------------------------
+scatter_waste_liquor <-
+  ggplot(subset(df,is_closed==FALSE),
+         aes(x=liquors, y=liquid_waste_kg)) +
+  geom_point(size = 2) +
+  geom_point(shape = 1, color = "black", size = 2) +
+  geom_smooth(method="lm", formula = y ~ x, fullrange=TRUE) +
+  geom_rug() +
+  scale_y_continuous(name = "Daily Liquid Food Waste (kg)",
+                     limits = c(-10, 10), expand = c(0.05, 0)) +
+  scale_x_continuous(name = "Daily Liquor Sold",
+                     limits = c(0, 10), expand = c(0.01, 0)) +
+  coord_cartesian(xlim=c(0,8), ylim=c(0,3)) +
+  theme_pubr() +
+  theme(legend.position = c(0.15, 0.9))
+#scatter_waste_liquor
+
+dens_liquor <-
+  ggplot(subset(df,is_closed==FALSE), aes(x = liquors)) +
+  geom_density(color="black", fill="grey") +
+  scale_fill_grey() +
+  theme_void() +
+  theme(legend.position = "none")
+#dens_liquor
+
+dens_waste <-
+  ggplot(subset(df,is_closed==FALSE), 
+         aes(x = liquid_waste_kg), fill = "dark") +
+  geom_density(color="black", fill="grey") +
+  theme_void() +
+  theme(legend.position = "none") +
+  coord_flip()
+#dens_waste
+
+scatter_liquid_liquor <- 
+  dens_liquor +
+  labs(title = "Scatter and Kernel Densities of Food Waste and Liquor") +
+  plot_spacer() + # library(patchwork)
+  scatter_waste_liquor + dens_waste +
+  plot_layout(ncol = 2, nrow = 2, widths = c(4, 1), heights = c(1, 4))
+
+scatter_liquid_liquor
+
+rm("dens_waste","dens_liquor","scatter_waste_liquor")
+```
+
+# Correlogram
+## Cross-Correlation
+```{r}
+ccf_fl_all <- 
+  ggCcf(df$food_loss_kg,df$food_waste_kg) +
+  labs(title = "Cross Corr Plot: Food Loss vs. All Food Waste")
+ccf_fl_liq <-
+  ggCcf(df$food_loss_kg,df$liquid_waste_kg) +
+  labs(title = "Cross Corr Plot: Food Loss vs. Liquid Food Waste")
+ccf_fl_sol <-
+  ggCcf(df$food_loss_kg,df$solid_waste_kg) +
+  labs(title = "Cross Corr Plot: Food Loss vs. Solid Food Waste")
+ccf_all_liq <-
+  ggCcf(df$food_waste_kg,df$liquid_waste_kg) +
+  labs(title = "Cross Corr Plot: All Food Waste vs. Liquid Food Waste")
+ccf_all_sol <-
+  ggCcf(df$food_waste_kg,df$solid_waste_kg) +
+  labs(title = "Cross Corr Plot: All Food Waste vs. Solid Food Waste")
+ccf_liq_sol <-
+  ggCcf(df$liquid_waste_kg,df$solid_waste_kg) +
+  labs(title = "Cross Corr Plot: liquid Food Waste vs. Solid Food Waste")
+
+grid.arrange(ccf_fl_all,ccf_fl_liq,ccf_fl_sol,
+             ccf_all_liq,ccf_all_sol,ccf_liq_sol)
+```
+
