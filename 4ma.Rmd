@@ -232,12 +232,12 @@ rdt_lfw_log <- df %>%
             lm(rdt_lfw_log, data = .)
 summary(rdt_lfw_log)
 
-noInt_rdt_mult_of <- df %>% 
-  filter(!is_closed) %>% list(
-  "log food waste"   = lm(log_fw_rdt_mult_cubic,  data = .),
-  "log solid waste"  = lm(log_sfw_rdt_mult_cubic, data = .),
-  "log liquid waste" = lm(log_lfw_rdt_mult_cubic, data = .)
-)
+# noInt_rdt_mult_of <- df %>% 
+#   filter(!is_closed) %>% list(
+#   "log food waste"   = lm(log_fw_rdt_mult_cubic,  data = .),
+#   "log solid waste"  = lm(log_sfw_rdt_mult_cubic, data = .),
+#   "log liquid waste" = lm(log_lfw_rdt_mult_cubic, data = .)
+# )
 ```
 
 ## Interaction
