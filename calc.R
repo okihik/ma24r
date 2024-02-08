@@ -1,4 +1,5 @@
 library(stargazer)
+rm(df_dept)
 
 df_dept <- subset(df[c("food_waste_kg", "solid_waste_kg","liquid_waste_kg")],
                   df$is_closed == FALSE)
@@ -22,13 +23,16 @@ get_p_stars = function(x) {
   return(out)
 }
 
-df_des <- as.data.frame(df[,c(62:64,11,13,14,16:18)])
-corr_des <- datasummary_correlation(df_des,
+df_des_log <- as.data.frame(df[,c(62:64,11,13,14,16:18)])
+datasummary(All(df_dept) ~ Mean + SD, data = df_dept, output = 'markdown')
+datasummary_correlation(df_dept, output = 'markdown',
+                        method = get_p_stars)
+corr_des <- datasummary_correlation(df_des_log,
                                     output = "data.frame",
                                     method = get_p_stars)[,2:10]
 
-datasummary(All(df_des) ~ Mean + SD, 
-            data = df_des, add_columns = corr_des, output = 'markdown',
+datasummary(All(df_des_log) ~ Mean + SD, 
+            data = df_des_log, add_columns = corr_des, output = 'markdown',
             title = 'Descriptive statistics and correlation matrix.',
             notes = c('N = 161.'))
 
