@@ -268,13 +268,15 @@ qq_fw <- ggqqplot(subset(df$food_waste_kg,
 
 # Solid Food waste ------------
 qq_sfw <- ggqqplot(subset(df$solid_waste_kg, 
-                          df$is_closed %in% FALSE)) +
+                          df$is_closed %in% FALSE),
+         color = "dark orange") +
   xlab("theoretical") + ylab("sample") +
   ggtitle("Solid Food Waste in kg")
 
 # Liquid Food waste ------------
 qq_lfw <- ggqqplot(subset(df$liquid_waste_kg, 
-                          df$is_closed %in% FALSE)) +
+                          df$is_closed %in% FALSE),
+         color = "dark blue") +
   xlab("theoretical") + ylab("sample") +
   ggtitle("Liquid Food Waste in kg")
 
@@ -342,13 +344,15 @@ ggqqplot(subset(df$food_waste_kg/df$customers,
 
 # Solid Food waste ------------
 ggqqplot(subset(df$solid_waste_kg/df$customers, 
-                df$is_closed %in% FALSE)) +
+                df$is_closed %in% FALSE),
+         color = "dark orange") +
   xlab("theoretical") + ylab("sample") +
   ggtitle("QQ plot of Solid Food Waste per Customer in kg")
 
 # Liquid Food waste ------------
 ggqqplot(subset(df$liquid_waste_kg/df$customers, 
-                df$is_closed %in% FALSE)) +
+                df$is_closed %in% FALSE),
+         color = "dark blue") +
   xlab("theoretical") + ylab("sample") +
   ggtitle("QQ plot of Liquid Food Waste per Customer in kg")
 ```
@@ -554,13 +558,15 @@ qq_log_fw <- ggqqplot(subset(log(df$food_waste_kg+1),
 
 # Solid Food waste ------------
 qq_log_sfw <- ggqqplot(subset(log(df$solid_waste_kg+1), 
-                df$is_closed %in% FALSE)) +
+                df$is_closed %in% FALSE),
+         color = "dark orange") +
   xlab("theoretical") + ylab("sample") +
   ggtitle("QQ plot of Log Solid Food Waste in kg")
 
 # Liquid Food waste ------------
 qq_log_lfw <- ggqqplot(subset(log(df$liquid_waste_kg+1), 
-                df$is_closed %in% FALSE)) +
+                df$is_closed %in% FALSE),
+         color = "dark blue") +
   xlab("theoretical") + ylab("sample") +
   ggtitle("QQ plot of Log Liquid Food Waste in kg")
 
