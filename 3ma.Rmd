@@ -1508,7 +1508,7 @@ check_autocorrelation(rdt_poly_sfw_log)
 check_autocorrelation(rdt_poly_lfw_log)
 ```
 
-## Cubic model
+## Log Cubic model
 ```{r rdint log cub model}
 # poly- food waste per customer -----
 rdt_cub_fw_log <- log_food_waste_kg ~ container * time + 
